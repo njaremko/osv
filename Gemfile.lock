@@ -1,0 +1,21 @@
+GEM
+  remote: https://rubygems.org/
+  specs:
+    minitest (5.25.4)
+    rake (13.2.1)
+    rake-compiler (1.2.0)
+      rake
+    rb_sys (0.9.103)
+
+PLATFORMS
+  arm64-darwin-23
+  ruby
+
+DEPENDENCIES
+  minitest (~> 5.0)
+  rake
+  rake-compiler (= 1.2.0)
+  rb_sys (~> 0.9.56)
+
+BUNDLED WITH
+   2.5.11
