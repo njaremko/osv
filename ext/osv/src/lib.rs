@@ -1,5 +1,6 @@
 mod compat;
 mod hash;
+mod io_reader;
 mod utils;
 
 use crate::compat::*;
