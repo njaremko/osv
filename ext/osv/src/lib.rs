@@ -4,6 +4,7 @@ use magnus::{
     scan_args::{get_kwargs, scan_args},
     Error, RString, Ruby, Value,
 };
+use std::{collections::VecDeque, io::Read};
 
 /// Initializes the Ruby extension and defines methods.
 #[magnus::init]
@@ -99,14 +100,12 @@ fn parse_csv(
     let (to_read, has_headers, delimiter) = parse_csv_args(args)?;
     let (rdr, headers) = setup_csv_parser(ruby, to_read, has_headers, delimiter)?;
 
-    let iter = rdr.into_records().filter_map(move |result| {
-        let record = result.ok()?;
-        let mut hash = std::collections::HashMap::new();
-        for (header, field) in headers.iter().zip(record.iter()) {
-            hash.insert(header.to_string(), field.to_string());
-        }
-        Some(hash)
-    });
+    let iter = BufferedRecordsAsHash {
+        reader: rdr,
+        buffer: VecDeque::with_capacity(1000),
+        record: csv::StringRecord::new(),
+        headers: headers,
+    };
 
     Ok(Yield::Iter(iter))
 }
@@ -125,16 +124,81 @@ fn parse_compat(
     let (to_read, has_headers, delimiter) = parse_csv_args(args)?;
     let (rdr, _) = setup_csv_parser(ruby, to_read, has_headers, delimiter)?;
 
-    let iter = rdr.into_records().filter_map(|result| {
-        result
-            .ok()
-            .map(|record| record.iter().map(|field| field.to_string()).collect())
-    });
+    let iter = BufferedRecords {
+        reader: rdr,
+        buffer: VecDeque::with_capacity(1000),
+        record: csv::StringRecord::new(),
+    };
 
     Ok(Yield::Iter(iter))
 }
 
-use std::io::Read;
+struct BufferedRecords {
+    reader: csv::Reader<Box<dyn Read>>,
+    buffer: VecDeque<Vec<String>>,
+    record: csv::StringRecord,
+}
+
+impl Iterator for BufferedRecords {
+    type Item = Vec<String>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.buffer.is_empty() {
+            // Refill buffer with up to 1000 records
+            while self.buffer.len() < 1000 {
+                if !self.reader.read_record(&mut self.record).unwrap() {
+                    break;
+                }
+                let row = self.record.iter().map(|field| field.to_string()).collect();
+                self.buffer.push_back(row);
+            }
+
+            if self.buffer.is_empty() {
+                return None;
+            }
+        }
+
+        self.buffer.pop_front()
+    }
+}
+
+struct BufferedRecordsAsHash {
+    reader: csv::Reader<Box<dyn Read>>,
+    buffer: VecDeque<std::collections::HashMap<String, String>>,
+    record: csv::StringRecord,
+    headers: Vec<String>,
+}
+
+impl Iterator for BufferedRecordsAsHash {
+    type Item = std::collections::HashMap<String, String>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.buffer.is_empty() {
+            // Refill buffer with up to 1000 records
+            while self.buffer.len() < 1000 {
+                if !self.reader.read_record(&mut self.record).unwrap() {
+                    break;
+                }
+                let mut map = std::collections::HashMap::new();
+                for (i, field) in self.record.iter().enumerate() {
+                    let header = if i < self.headers.len() {
+                        self.headers[i].to_string()
+                    } else {
+                        format!("c{}", i)
+                    };
+                    map.insert(header, field.to_string());
+                }
+                self.buffer.push_back(map);
+            }
+
+            if self.buffer.is_empty() {
+                return None;
+            }
+        }
+
+        self.buffer.pop_front()
+    }
+}
 
 struct RubyIOReader {
     io_obj: Value,
@@ -142,24 +206,39 @@ struct RubyIOReader {
 
 impl Read for RubyIOReader {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-        let result: RString = self.io_obj.funcall("read", (buf.len(),)).map_err(|_| {
-            std::io::Error::new(std::io::ErrorKind::Other, "Failed to read from IO")
-        })?;
-
-        // Handle EOF case
-        if result.is_nil() {
-            return Ok(0);
+        if self.io_obj.is_nil() {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                format!("Cannot read from nil IO object"),
+            ));
         }
 
-        let rust_string = result.to_string().map_err(|_| {
-            std::io::Error::new(std::io::ErrorKind::Other, "Failed to convert to string")
-        })?;
-        let bytes = rust_string.as_bytes();
+        let tmp_result: Option<RString> =
+            self.io_obj.funcall("read", (buf.len(),)).map_err(|e| {
+                std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    format!("Failed to read from IO: {:?}", e),
+                )
+            })?;
 
-        let bytes_to_copy = rust_string.len().min(buf.len());
-        buf[..bytes_to_copy].copy_from_slice(&bytes[..bytes_to_copy]);
+        if let Some(result) = tmp_result {
+            // Handle EOF case
+            if result.is_nil() {
+                return Ok(0);
+            }
 
-        Ok(bytes_to_copy)
+            let rust_string = result.to_string().map_err(|_| {
+                std::io::Error::new(std::io::ErrorKind::Other, "Failed to convert to string")
+            })?;
+            let bytes = rust_string.as_bytes();
+
+            let bytes_to_copy = rust_string.len().min(buf.len());
+            buf[..bytes_to_copy].copy_from_slice(&bytes[..bytes_to_copy]);
+
+            Ok(bytes_to_copy)
+        } else {
+            return Ok(0);
+        }
     }
 }
 
