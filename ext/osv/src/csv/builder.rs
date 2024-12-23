@@ -3,6 +3,7 @@ use super::{
     parser::RecordParser,
     reader::{ReadImpl, RecordReader},
 };
+use flate2::read::GzDecoder;
 use magnus::{rb_sys::AsRawValue, value::ReprValue, Error, RString, Ruby, Value};
 use std::{fs::File, io::Read, marker::PhantomData, os::fd::FromRawFd, thread};
 
@@ -75,7 +76,12 @@ impl<'a, T: RecordParser + Send + 'static> RecordReaderBuilder<'a, T> {
                     format!("Failed to open file: {e}"),
                 )
             })?;
-            Ok(Box::new(file))
+            if path.ends_with(".gz") {
+                let file = GzDecoder::new(file);
+                Ok(Box::new(file))
+            } else {
+                Ok(Box::new(file))
+            }
         }
     }
 

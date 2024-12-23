@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 require "osv"
-
+require "zlib"
 require "minitest/autorun"
 
 class BasicTest < Minitest::Test
@@ -59,6 +59,24 @@ class BasicTest < Minitest::Test
     actual = []
     File.open("test/test.csv") { |file| OSV.for_each(file) { |row| actual << row } }
     assert_equal expected, actual
+  end
+
+  def test_parse_csv_with_gzip
+    expected = [
+      { "id" => "1", "age" => "25", "name" => "John" },
+      { "name" => "Jane", "id" => "2", "age" => "30" },
+      { "name" => "Jim", "age" => "35", "id" => "3" }
+    ]
+    actual = []
+    File.open("test/test.csv.gz", "wb") do |gz_file|
+      gz = Zlib::GzipWriter.new(gz_file)
+      gz.write(File.read("test/test.csv"))
+      gz.close
+    end
+    OSV.for_each("test/test.csv.gz") { |row| actual << row }
+    assert_equal expected, actual
+  ensure
+    FileUtils.rm_f("test/test.csv.gz")
   end
 
   def test_parse_csv_with_string_io
