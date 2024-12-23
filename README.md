@@ -1,5 +1,7 @@
 # OSV
 
+[![Gem Version](https://badge.fury.io/rb/osv.svg)](https://badge.fury.io/rb/osv)
+
 OSV is a high-performance CSV parser for Ruby, implemented in Rust. It wraps BurntSushi's excellent [csv-rs](https://github.com/BurntSushi/rust-csv) crate.
 
 It provides a simple interface for reading CSV files with support for both hash-based and array-based row formats.
