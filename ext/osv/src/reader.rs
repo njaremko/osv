@@ -1,17 +1,33 @@
 use crate::utils::*;
 use magnus::{
-    block::Yield, rb_sys::AsRawValue, value::ReprValue, Error, RClass, RString, Ruby, Value,
+    block::Yield, rb_sys::AsRawValue, value::ReprValue, Error, IntoValue, RClass, RString, Ruby,
+    Value,
 };
 use std::{
     collections::HashMap, fs::File, io::Read, marker::PhantomData, os::fd::FromRawFd, thread,
 };
+
+#[derive(Debug)]
+pub enum CsvRecord {
+    Vec(Vec<Option<String>>),
+    Map(HashMap<String, Option<String>>),
+}
+
+impl IntoValue for CsvRecord {
+    fn into_value_with(self, handle: &Ruby) -> Value {
+        match self {
+            CsvRecord::Vec(vec) => vec.into_value_with(handle),
+            CsvRecord::Map(map) => map.into_value_with(handle),
+        }
+    }
+}
 
 /// Parses CSV data from a file and yields each row as a hash to the block.
 pub fn parse_csv(
     ruby: &Ruby,
     rb_self: Value,
     args: &[Value],
-) -> Result<Yield<impl Iterator<Item = HashMap<String, Option<String>>>>, Error> {
+) -> Result<Yield<impl Iterator<Item = CsvRecord>>, Error> {
     if !ruby.block_given() {
         return Ok(Yield::Enumerator(rb_self.enumeratorize("for_each", args)));
     }
@@ -22,45 +38,38 @@ pub fn parse_csv(
         delimiter,
         quote_char,
         null_string,
+        buffer_size,
+        result_type,
     } = parse_csv_args(args)?;
 
-    let iter = RecordReaderBuilder::<HashMap<String, Option<String>>>::new(ruby, to_read)
-        .has_headers(has_headers)
-        .delimiter(delimiter)
-        .quote_char(quote_char)
-        .null_string(null_string)
-        .buffer(1000)
-        .build()?;
-
-    Ok(Yield::Iter(iter))
-}
-
-pub fn parse_compat(
-    ruby: &Ruby,
-    rb_self: Value,
-    args: &[Value],
-) -> Result<Yield<impl Iterator<Item = Vec<Option<String>>>>, Error> {
-    if !ruby.block_given() {
-        return Ok(Yield::Enumerator(
-            rb_self.enumeratorize("for_each_compat", args),
-        ));
-    }
-
-    let CsvArgs {
-        to_read,
-        has_headers,
-        delimiter,
-        quote_char,
-        null_string,
-    } = parse_csv_args(args)?;
-
-    let iter = RecordReaderBuilder::<Vec<Option<String>>>::new(ruby, to_read)
-        .has_headers(has_headers)
-        .delimiter(delimiter)
-        .quote_char(quote_char)
-        .null_string(null_string)
-        .buffer(1000)
-        .build()?;
+    let iter: Box<dyn Iterator<Item = CsvRecord>> = match result_type.as_str() {
+        "hash" => Box::new(
+            RecordReaderBuilder::<HashMap<String, Option<String>>>::new(ruby, to_read)
+                .has_headers(has_headers)
+                .delimiter(delimiter)
+                .quote_char(quote_char)
+                .null_string(null_string)
+                .buffer(buffer_size)
+                .build()?
+                .map(CsvRecord::Map),
+        ),
+        "array" => Box::new(
+            RecordReaderBuilder::<Vec<Option<String>>>::new(ruby, to_read)
+                .has_headers(has_headers)
+                .delimiter(delimiter)
+                .quote_char(quote_char)
+                .null_string(null_string)
+                .buffer(buffer_size)
+                .build()?
+                .map(CsvRecord::Vec),
+        ),
+        _ => {
+            return Err(Error::new(
+                ruby.exception_runtime_error(),
+                "Invalid result type",
+            ))
+        }
+    };
 
     Ok(Yield::Iter(iter))
 }

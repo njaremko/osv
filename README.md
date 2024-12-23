@@ -8,8 +8,6 @@ It provides a simple interface for reading CSV files with support for both hash-
 
 The array-based mode is faster than the hash-based mode, so if you don't need the hash keys, use the array-based mode.
 
-I have yet to figure out how to get rust to accept an implementation of this as one method with different return types, so I've had to implement two methods.
-
 ## Installation
 
 Add this line to your application's Gemfile:
@@ -55,7 +53,7 @@ rows.each { |row| puts row["name"] }
 If you prefer working with arrays instead of hashes, use `for_each_compat`:
 
 ```ruby
-OSV.for_each_compat("path/to/file.csv") do |row|
+OSV.for_each("path/to/file.csv", result_type: "array") do |row|
   # row is an Array like ["John", "25"]
   puts row[0]
 end

@@ -23,7 +23,7 @@ class BasicTest < Minitest::Test
       { "name" => "Jim", "age" => "35", "id" => "3" }
     ]
     actual = []
-    OSV.for_each("test/test.csv", null_string: "Jane") { |row| actual << row }
+    OSV.for_each("test/test.csv", nil_string: "Jane") { |row| actual << row }
     assert_equal expected, actual
   end
 
@@ -77,35 +77,37 @@ class BasicTest < Minitest::Test
   def test_parse_csv_compat_without_headers
     expected = [%w[id name age], %w[1 John 25], %w[2 Jane 30], %w[3 Jim 35]]
     actual = []
-    OSV.for_each_compat("test/test.csv", has_headers: false) { |row| actual << row }
+    OSV.for_each("test/test.csv", has_headers: false, result_type: "array") { |row| actual << row }
     assert_equal expected, actual
   end
 
   def test_parse_csv_compat_with_headers
     expected = [%w[1 John 25], %w[2 Jane 30], %w[3 Jim 35]]
     actual = []
-    OSV.for_each_compat("test/test.csv", has_headers: true) { |row| actual << row }
+    OSV.for_each("test/test.csv", has_headers: true, result_type: "array") { |row| actual << row }
     assert_equal expected, actual
   end
 
   def test_parse_csv_compat_with_headers_null
     expected = [%w[1 John 25], ["2", nil, "30"], %w[3 Jim 35]]
     actual = []
-    OSV.for_each_compat("test/test.csv", has_headers: true, null_string: "Jane") { |row| actual << row }
+    OSV.for_each("test/test.csv", has_headers: true, nil_string: "Jane", result_type: "array") { |row| actual << row }
     assert_equal expected, actual
   end
 
   def test_parse_csv_compat_with_io_and_headers
     expected = [%w[1 John 25], %w[2 Jane 30], %w[3 Jim 35]]
     actual = []
-    File.open("test/test.csv") { |file| OSV.for_each_compat(file) { |row| actual << row } }
+    File.open("test/test.csv") { |file| OSV.for_each(file, result_type: "array") { |row| actual << row } }
     assert_equal expected, actual
   end
 
   def test_parse_csv_compat_with_io_without_headers
     expected = [%w[id name age], %w[1 John 25], %w[2 Jane 30], %w[3 Jim 35]]
     actual = []
-    File.open("test/test.csv") { |file| OSV.for_each_compat(file, has_headers: false) { |row| actual << row } }
+    File.open("test/test.csv") do |file|
+      OSV.for_each(file, has_headers: false, result_type: "array") { |row| actual << row }
+    end
     assert_equal expected, actual
   end
 
@@ -121,7 +123,7 @@ class BasicTest < Minitest::Test
   end
 
   def test_for_each_compat_without_block
-    result = OSV.for_each_compat("test/test.csv")
+    result = OSV.for_each("test/test.csv", result_type: "array")
     assert_instance_of Enumerator, result
     expected = [%w[1 John 25], %w[2 Jane 30], %w[3 Jim 35]]
     assert_equal expected, result.to_a
