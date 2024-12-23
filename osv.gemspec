@@ -14,7 +14,18 @@ Gem::Specification.new do |spec|
   spec.metadata["homepage_uri"] = spec.homepage
   spec.metadata["source_code_uri"] = "https://github.com/njaremko/osv"
 
-  spec.files = Dir["lib/**/*.rb", "ext/**/*", "LICENSE", "README.md", "Cargo.toml", "Cargo.lock", "Gemfile", "Rakefile"]
+  spec.files =
+    Dir[
+      "lib/**/*.rb",
+      "lib/**/*.rbi",
+      "ext/**/*",
+      "LICENSE",
+      "README.md",
+      "Cargo.toml",
+      "Cargo.lock",
+      "Gemfile",
+      "Rakefile"
+    ]
   spec.require_paths = ["lib"]
 
   spec.extensions = ["ext/osv/extconf.rb"]

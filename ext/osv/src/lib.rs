@@ -1,10 +1,7 @@
-mod compat;
-mod hash;
-mod io_reader;
+mod reader;
 mod utils;
 
-use crate::compat::*;
-use crate::hash::*;
+use crate::reader::*;
 
 use magnus::{Error, Ruby};
 
