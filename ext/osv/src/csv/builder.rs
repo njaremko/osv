@@ -80,7 +80,6 @@ impl<'a, T: RecordParser + Send + 'static> RecordReaderBuilder<'a, T> {
 
     pub fn build(self) -> Result<RecordReader<T>, Error> {
         let readable = self.get_reader()?;
-
         let mut reader = csv::ReaderBuilder::new()
             .has_headers(self.has_headers)
             .delimiter(self.delimiter)
@@ -88,14 +87,13 @@ impl<'a, T: RecordParser + Send + 'static> RecordReaderBuilder<'a, T> {
             .from_reader(readable);
 
         let headers = RecordReader::<T>::get_headers(self.ruby, &mut reader, self.has_headers)?;
-        let headers_clone = headers.clone();
         let null_string = self.null_string;
 
         let (sender, receiver) = kanal::bounded(self.buffer);
         let handle = thread::spawn(move || {
             let mut record = csv::StringRecord::new();
             while let Ok(true) = reader.read_record(&mut record) {
-                let row = T::parse(&headers_clone, &record, &null_string);
+                let row = T::parse(&headers, &record, &null_string);
                 if sender.send(row).is_err() {
                     break;
                 }
