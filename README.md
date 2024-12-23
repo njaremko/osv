@@ -111,7 +111,3 @@ OSV.for_each(data) { |row| puts row["name"] }
 ## Performance
 
 This library is faster than the standard Ruby CSV library, and is comparable to the fastest CSV parser gems I've used.
-
-## License
-
-This gem is not currently licensed for public use.
