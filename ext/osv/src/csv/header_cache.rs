@@ -1,3 +1,11 @@
+/// This module exists to avoid cloning header keys in returned HashMaps.
+/// Since the underlying RString creation already involves cloning,
+/// this caching layer aims to reduce redundant allocations.
+///
+/// Note: Performance testing on macOS showed minimal speed improvements,
+/// so this optimization could be removed if any issues arise.
+
+
 use std::{
     collections::HashMap,
     sync::{atomic::AtomicU32, LazyLock, Mutex},
