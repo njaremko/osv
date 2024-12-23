@@ -1,15 +1,15 @@
-use std::collections::HashMap;
-
 use crate::csv::{CsvRecord, RecordReaderBuilder};
 use crate::utils::*;
 use magnus::value::ReprValue;
 use magnus::{block::Yield, Error, KwArgs, RHash, Ruby, Symbol, Value};
+use std::collections::HashMap;
 
 pub fn parse_csv(
-    ruby: &Ruby,
     rb_self: Value,
     args: &[Value],
 ) -> Result<Yield<Box<dyn Iterator<Item = CsvRecord>>>, Error> {
+    let ruby = unsafe { Ruby::get_unchecked() };
+
     let CsvArgs {
         to_read,
         has_headers,
@@ -18,7 +18,7 @@ pub fn parse_csv(
         null_string,
         buffer_size,
         result_type,
-    } = parse_csv_args(ruby, args)?;
+    } = parse_csv_args(&ruby, args)?;
 
     if !ruby.block_given() {
         return create_enumerator(EnumeratorArgs {
@@ -35,7 +35,7 @@ pub fn parse_csv(
 
     let iter: Box<dyn Iterator<Item = CsvRecord>> = match result_type.as_str() {
         "hash" => Box::new(
-            RecordReaderBuilder::<HashMap<String, Option<String>>>::new(ruby, to_read)
+            RecordReaderBuilder::<HashMap<&'static str, Option<String>>>::new(&ruby, to_read)
                 .has_headers(has_headers)
                 .delimiter(delimiter)
                 .quote_char(quote_char)
@@ -45,7 +45,7 @@ pub fn parse_csv(
                 .map(CsvRecord::Map),
         ),
         "array" => Box::new(
-            RecordReaderBuilder::<Vec<Option<String>>>::new(ruby, to_read)
+            RecordReaderBuilder::<Vec<Option<String>>>::new(&ruby, to_read)
                 .has_headers(has_headers)
                 .delimiter(delimiter)
                 .quote_char(quote_char)

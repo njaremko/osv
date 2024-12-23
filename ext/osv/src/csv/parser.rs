@@ -2,24 +2,24 @@ use std::collections::HashMap;
 
 pub trait RecordParser {
     type Output;
-    fn parse<'a>(
-        headers: &'a [String],
+    fn parse(
+        headers: &[&'static str],
         record: &csv::StringRecord,
         null_string: &str,
     ) -> Self::Output;
 }
 
-impl RecordParser for HashMap<String, Option<String>> {
+impl RecordParser for HashMap<&'static str, Option<String>> {
     type Output = Self;
-    fn parse<'a>(
-        headers: &'a [String],
+    fn parse(
+        headers: &[&'static str],
         record: &csv::StringRecord,
         null_string: &str,
     ) -> Self::Output {
         let mut map = HashMap::with_capacity(headers.len());
         for (header, field) in headers.iter().zip(record.iter()) {
             map.insert(
-                header.clone(),
+                *header,
                 if field == null_string {
                     None
                 } else {
@@ -33,8 +33,8 @@ impl RecordParser for HashMap<String, Option<String>> {
 
 impl RecordParser for Vec<Option<String>> {
     type Output = Self;
-    fn parse<'a>(
-        _headers: &'a [String],
+    fn parse(
+        _headers: &[&'static str],
         record: &csv::StringRecord,
         null_string: &str,
     ) -> Self::Output {

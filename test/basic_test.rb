@@ -135,4 +135,41 @@ class BasicTest < Minitest::Test
     expected = [%w[1 John 25], %w[2 Jane 30], %w[3 Jim 35]]
     assert_equal expected, result.to_a
   end
+
+  def test_parse_csv_in_multiple_threads
+    expected = [
+      { "id" => "1", "age" => "25", "name" => "John" },
+      { "name" => "Jane", "id" => "2", "age" => "30" },
+      { "name" => "Jim", "age" => "35", "id" => "3" }
+    ]
+
+    threads =
+      100.times.map do
+        Thread.new do
+          result = OSV.for_each("test/test.csv").to_a
+          assert_equal expected, result
+        end
+      end
+
+    threads.each(&:join)
+  end
+
+  def test_parse_csv_in_multiple_threads_block
+    expected = [
+      { "id" => "1", "age" => "25", "name" => "John" },
+      { "name" => "Jane", "id" => "2", "age" => "30" },
+      { "name" => "Jim", "age" => "35", "id" => "3" }
+    ]
+
+    threads =
+      100.times.map do
+        Thread.new do
+          results = []
+          OSV.for_each("test/test.csv") { |row| results << row }
+          assert_equal expected, results
+        end
+      end
+
+    threads.each(&:join)
+  end
 end

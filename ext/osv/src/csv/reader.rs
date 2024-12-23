@@ -1,4 +1,4 @@
-use super::parser::RecordParser;
+use super::{header_cache::StringCache, parser::RecordParser};
 use magnus::{Error, Ruby};
 use std::{io::Read, thread};
 
@@ -6,14 +6,36 @@ pub struct RecordReader<T: RecordParser> {
     pub(crate) reader: ReadImpl<T>,
 }
 
+impl<T: RecordParser> Drop for RecordReader<T> {
+    fn drop(&mut self) {
+        match &mut self.reader {
+            ReadImpl::MultiThreaded {
+                receiver,
+                handle,
+                headers,
+            } => {
+                receiver.close();
+                if let Some(handle) = handle.take() {
+                    let _ = handle.join();
+                }
+                StringCache::clear(headers).unwrap();
+            }
+            ReadImpl::SingleThreaded { headers, .. } => {
+                StringCache::clear(headers).unwrap();
+            }
+        }
+    }
+}
+
 #[allow(dead_code)]
 pub enum ReadImpl<T: RecordParser> {
     SingleThreaded {
         reader: csv::Reader<Box<dyn Read + Send + 'static>>,
-        headers: Vec<String>,
+        headers: Vec<&'static str>,
         null_string: String,
     },
     MultiThreaded {
+        headers: Vec<&'static str>,
         receiver: kanal::Receiver<T::Output>,
         handle: Option<thread::JoinHandle<()>>,
     },
@@ -48,7 +70,9 @@ impl<T: RecordParser> Iterator for RecordReader<T> {
 
     fn next(&mut self) -> Option<Self::Item> {
         match &mut self.reader {
-            ReadImpl::MultiThreaded { receiver, handle } => match receiver.recv() {
+            ReadImpl::MultiThreaded {
+                receiver, handle, ..
+            } => match receiver.recv() {
                 Ok(record) => Some(record),
                 Err(_) => {
                     if let Some(handle) = handle.take() {

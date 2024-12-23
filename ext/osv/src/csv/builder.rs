@@ -1,4 +1,5 @@
 use super::{
+    header_cache::StringCache,
     parser::RecordParser,
     reader::{ReadImpl, RecordReader},
 };
@@ -89,11 +90,19 @@ impl<'a, T: RecordParser + Send + 'static> RecordReaderBuilder<'a, T> {
         let headers = RecordReader::<T>::get_headers(self.ruby, &mut reader, self.has_headers)?;
         let null_string = self.null_string;
 
+        let static_headers = StringCache::intern_many(&headers).map_err(|e| {
+            Error::new(
+                self.ruby.exception_runtime_error(),
+                format!("Failed to intern headers: {e}"),
+            )
+        })?;
+        let headers_for_cleanup = static_headers.clone();
+
         let (sender, receiver) = kanal::bounded(self.buffer);
         let handle = thread::spawn(move || {
             let mut record = csv::StringRecord::new();
             while let Ok(true) = reader.read_record(&mut record) {
-                let row = T::parse(&headers, &record, &null_string);
+                let row = T::parse(&static_headers, &record, &null_string);
                 if sender.send(row).is_err() {
                     break;
                 }
@@ -104,6 +113,7 @@ impl<'a, T: RecordParser + Send + 'static> RecordReaderBuilder<'a, T> {
 
         Ok(RecordReader {
             reader: ReadImpl::MultiThreaded {
+                headers: headers_for_cleanup,
                 receiver,
                 handle: Some(handle),
             },
