@@ -1,3 +1,4 @@
+mod csv;
 mod reader;
 mod utils;
 

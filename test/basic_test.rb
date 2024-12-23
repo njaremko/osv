@@ -128,4 +128,11 @@ class BasicTest < Minitest::Test
     expected = [%w[1 John 25], %w[2 Jane 30], %w[3 Jim 35]]
     assert_equal expected, result.to_a
   end
+
+  def test_for_each_compat_without_block_with_symbol
+    result = OSV.for_each("test/test.csv", result_type: :array)
+    assert_instance_of Enumerator, result
+    expected = [%w[1 John 25], %w[2 Jane 30], %w[3 Jim 35]]
+    assert_equal expected, result.to_a
+  end
 end

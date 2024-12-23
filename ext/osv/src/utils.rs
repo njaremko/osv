@@ -1,6 +1,7 @@
 use magnus::{
     scan_args::{get_kwargs, scan_args},
-    Error, Value,
+    value::ReprValue,
+    Error, RString, Ruby, Symbol, Value,
 };
 
 #[derive(Debug)]
@@ -15,7 +16,7 @@ pub struct CsvArgs {
 }
 
 /// Parse common arguments for CSV parsing
-pub fn parse_csv_args(args: &[Value]) -> Result<CsvArgs, Error> {
+pub fn parse_csv_args(ruby: &Ruby, args: &[Value]) -> Result<CsvArgs, Error> {
     let parsed_args = scan_args::<(Value,), (), (), (), _, ()>(args)?;
     let (to_read,) = parsed_args.required;
 
@@ -28,7 +29,7 @@ pub fn parse_csv_args(args: &[Value]) -> Result<CsvArgs, Error> {
             Option<String>,
             Option<String>,
             Option<usize>,
-            Option<String>,
+            Option<Value>,
         ),
         (),
     >(
@@ -76,15 +77,38 @@ pub fn parse_csv_args(args: &[Value]) -> Result<CsvArgs, Error> {
 
     let buffer_size = kwargs.optional.4.unwrap_or(1000);
 
-    let result_type = {
-        let rt = kwargs.optional.5.unwrap_or_else(|| "hash".to_string());
-        if rt != "hash" && rt != "array" {
-            return Err(Error::new(
-                magnus::exception::runtime_error(),
-                "result_type must be either 'hash' or 'array'",
-            ));
+    let result_type = match kwargs.optional.5 {
+        Some(value) => {
+            let parsed = if value.is_kind_of(ruby.class_string()) {
+                RString::from_value(value)
+                    .ok_or_else(|| {
+                        Error::new(magnus::exception::type_error(), "Invalid string value")
+                    })?
+                    .to_string()?
+            } else if value.is_kind_of(ruby.class_symbol()) {
+                Symbol::from_value(value)
+                    .ok_or_else(|| {
+                        Error::new(magnus::exception::type_error(), "Invalid symbol value")
+                    })?
+                    .funcall("to_s", ())?
+            } else {
+                return Err(Error::new(
+                    magnus::exception::type_error(),
+                    "result_type must be a String or Symbol",
+                ));
+            };
+
+            match parsed.as_str() {
+                "hash" | "array" => parsed,
+                _ => {
+                    return Err(Error::new(
+                        magnus::exception::runtime_error(),
+                        "result_type must be either 'hash' or 'array'",
+                    ))
+                }
+            }
         }
-        rt
+        None => String::from("hash"),
     };
 
     Ok(CsvArgs {

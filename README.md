@@ -53,7 +53,7 @@ rows.each { |row| puts row["name"] }
 If you prefer working with arrays instead of hashes, use `for_each_compat`:
 
 ```ruby
-OSV.for_each("path/to/file.csv", result_type: "array") do |row|
+OSV.for_each("path/to/file.csv", result_type: :array) do |row|
   # row is an Array like ["John", "25"]
   puts row[0]
 end
