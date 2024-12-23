@@ -66,11 +66,11 @@ end
 Both methods support the following options:
 
 - `has_headers`: Boolean indicating if the first row contains headers (default: true)
-- `delimiter`: String specifying the field separator (default: ",")
+- `col_sep`: String specifying the field separator (default: ",")
 
 ```ruby
 # Reading TSV files
-OSV.for_each("path/to/file.tsv", delimiter: "\t") do |row|
+OSV.for_each("path/to/file.tsv", col_sep: "\t") do |row|
   puts row["name"]
 end
 

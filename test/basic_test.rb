@@ -16,6 +16,17 @@ class BasicTest < Minitest::Test
     assert_equal expected, actual
   end
 
+  def test_parse_csv_with_headers_null
+    expected = [
+      { "id" => "1", "age" => "25", "name" => "John" },
+      { "name" => nil, "id" => "2", "age" => "30" },
+      { "name" => "Jim", "age" => "35", "id" => "3" }
+    ]
+    actual = []
+    OSV.for_each("test/test.csv", null_string: "Jane") { |row| actual << row }
+    assert_equal expected, actual
+  end
+
   def test_parse_csv_with_tsv
     expected = [
       { "id" => "1", "age" => "25", "name" => "John" },
@@ -23,7 +34,7 @@ class BasicTest < Minitest::Test
       { "name" => "Jim", "age" => "35", "id" => "3" }
     ]
     actual = []
-    OSV.for_each("test/test.tsv", delimiter: "\t") { |row| actual << row }
+    OSV.for_each("test/test.tsv", col_sep: "\t") { |row| actual << row }
     assert_equal expected, actual
   end
 
@@ -74,6 +85,13 @@ class BasicTest < Minitest::Test
     expected = [%w[1 John 25], %w[2 Jane 30], %w[3 Jim 35]]
     actual = []
     OSV.for_each_compat("test/test.csv", has_headers: true) { |row| actual << row }
+    assert_equal expected, actual
+  end
+
+  def test_parse_csv_compat_with_headers_null
+    expected = [%w[1 John 25], ["2", nil, "30"], %w[3 Jim 35]]
+    actual = []
+    OSV.for_each_compat("test/test.csv", has_headers: true, null_string: "Jane") { |row| actual << row }
     assert_equal expected, actual
   end
 
