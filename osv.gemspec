@@ -26,8 +26,8 @@ EOF
   spec.metadata["source_code_uri"] = "https://github.com/njaremko/osv"
   spec.metadata["readme_uri"] = "https://github.com/njaremko/osv/blob/main/README.md"
   spec.metadata["changelog_uri"] = "https://github.com/njaremko/osv/blob/main/CHANGELOG.md"
-  spec.metadata["rubygems_mfa_required"] = "true"
   spec.metadata["documentation_uri"] = "https://www.rubydoc.info/gems/osv"
+  spec.metadata["funding_uri"] = "https://github.com/sponsors/njaremko"
 
   spec.files =
     Dir[
