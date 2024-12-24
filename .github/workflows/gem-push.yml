@@ -3,8 +3,12 @@ name: Ruby Gem
 on:
   push:
     branches: ["main"]
+    paths:
+      - "lib/osv/version.rb"
   pull_request:
     branches: ["main"]
+    paths:
+      - "lib/osv/version.rb"
 
 jobs:
   build:
