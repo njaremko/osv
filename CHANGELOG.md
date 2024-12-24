@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.12
+
+- Attempt at improving RubyGems page for the gem
+
 ## 0.3.11
 
 - Set license to MIT in gemspec

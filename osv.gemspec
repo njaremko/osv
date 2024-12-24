@@ -7,6 +7,7 @@ Gem::Specification.new do |spec|
   spec.email = ["nathan@jaremko.ca"]
 
   spec.summary = "CSV parser for Ruby"
+  spec.description = File.read("README.md")
   spec.homepage = "https://github.com/njaremko/osv"
   spec.license = "MIT"
   spec.required_ruby_version = ">= 3.1.0"
