@@ -30,38 +30,66 @@ gem install osv
 
 ## Usage
 
-### Basic Usage with Hash Output
-
-Each row is returned as a hash where the keys are the column headers:
+### Reading CSV Files
 
 ```ruby
 require 'osv'
 
-# Read from a file
-OSV.for_each("path/to/file.csv") do |row|
-  # row is a Hash like {"name" => "John", "age" => "25"}
-  puts row["name"]
+# Basic usage - each row as a hash
+OSV.for_each("data.csv") do |row|
+  puts row["name"]  # => "John"
+  puts row["age"]   # => "25"
 end
 
-# Without a block, returns an Enumerator
-rows = OSV.for_each("path/to/file.csv")
+# Return an enumerator instead of using a block
+rows = OSV.for_each("data.csv")
 rows.each { |row| puts row["name"] }
+
+# High-performance array mode
+OSV.for_each("data.csv", result_type: :array) do |row|
+  puts row[0]  # First column
+  puts row[1]  # Second column
+end
 ```
 
-### Array Output Mode
-
-If you prefer working with arrays instead of hashes, use `for_each_compat`:
+### Input Sources
 
 ```ruby
-OSV.for_each("path/to/file.csv", result_type: :array) do |row|
-  # row is an Array like ["John", "25"]
-  puts row[0]
-end
+# From a file path
+OSV.for_each("data.csv") { |row| puts row["name"] }
+
+# From a file path
+OSV.for_each("data.csv.gz") { |row| puts row["name"] }
+
+# From an IO object
+File.open("data.csv") { |file| OSV.for_each(file) { |row| puts row["name"] } }
+
+# From a string
+data = StringIO.new("name,age\nJohn,25")
+OSV.for_each(data) { |row| puts row["name"] }
 ```
 
-### Options
+### Configuration Options
 
-Both methods support the following options:
+```ruby
+OSV.for_each("data.csv",
+  # Input formatting
+  has_headers: true,      # First row contains headers (default: true)
+  col_sep: ",",          # Column separator (default: ",")
+  quote_char: '"',       # Quote character (default: '"')
+
+  # Output formatting
+  result_type: :hash,    # :hash or :array (hash is default)
+  nil_string: "",        # String to interpret as nil
+
+  # Parsing behavior
+  flexible: false,       # Allow varying number of fields (default: false)
+  flexible_default: nil, # Default value for missing fields. Implicitly enables flexible mode if set.
+  trim: :all            # Trim whitespace: :all, :headers, or :fields
+)
+```
+
+#### Available Options
 
 - `has_headers`: Boolean indicating if the first row contains headers (default: true)
 - `col_sep`: String specifying the field separator (default: ",")
@@ -75,29 +103,7 @@ Both methods support the following options:
 - `flexible_default`: String specifying the default value for missing fields. Implicitly enables flexible mode if set. (default: `nil`)
 - `trim`: String specifying the trim mode ("all" or "headers" or "fields" or :all or :headers or :fields)
 
-### Input Sources
-
-OSV supports reading from:
-
-- File paths (as strings)
-- IO objects
-  - Important caveat: the IO object must respond to `rb_io_descriptor` with a file descriptor.
-- StringIO objects
-  - Note: when you do this, the string is read (in full) into a Rust string, and we parse it there.
-
-```ruby
-# From file path
-OSV.for_each("path/to/file.csv") { |row| puts row["name"] }
-
-# From IO object
-File.open("path/to/file.csv") do |file|
-  OSV.for_each(file) { |row| puts row["name"] }
-end
-
-# From StringIO
-data = StringIO.new("name,age\nJohn,25")
-OSV.for_each(data) { |row| puts row["name"] }
-```
+When `has_headers` is false, hash keys will be generated as `"c0"`, `"c1"`, etc.
 
 ## Requirements
 
