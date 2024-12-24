@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    osv (0.3.12)
+    osv (0.3.13)
       rb_sys (~> 0.9.39)
 
 GEM

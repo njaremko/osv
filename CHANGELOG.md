@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.13
+
+- Turns out, gemspec descriptions cannot be markdown. Fixing that.
+
 ## 0.3.12
 
 - Attempt at improving RubyGems page for the gem

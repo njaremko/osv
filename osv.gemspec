@@ -7,13 +7,27 @@ Gem::Specification.new do |spec|
   spec.email = ["nathan@jaremko.ca"]
 
   spec.summary = "CSV parser for Ruby"
-  spec.description = File.read("README.md")
+  spec.description = <<-EOF
+OSV is a high-performance CSV parser for Ruby, implemented in Rust. It wraps BurntSushi's csv-rs crate to provide fast CSV parsing with support for both hash-based and array-based row formats.
+
+Features include:
+- Flexible input sources (file paths, gzipped files, IO objects, strings)
+- Configurable parsing options (headers, separators, quote chars)
+- Support for both hash and array output formats
+- Whitespace trimming options
+- Strict or flexible parsing modes
+- Significantly faster than Ruby's standard CSV library
+EOF
   spec.homepage = "https://github.com/njaremko/osv"
   spec.license = "MIT"
   spec.required_ruby_version = ">= 3.1.0"
 
   spec.metadata["homepage_uri"] = spec.homepage
   spec.metadata["source_code_uri"] = "https://github.com/njaremko/osv"
+  spec.metadata["readme_uri"] = "https://github.com/njaremko/osv/blob/main/README.md"
+  spec.metadata["changelog_uri"] = "https://github.com/njaremko/osv/blob/main/CHANGELOG.md"
+  spec.metadata["rubygems_mfa_required"] = "true"
+  spec.metadata["documentation_uri"] = "https://www.rubydoc.info/gems/osv"
 
   spec.files =
     Dir[
