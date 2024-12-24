@@ -144,7 +144,6 @@ class BasicTest < Minitest::Test
         { "id" => "1", "age" => "25", "name" => "John" },
         { "name" => "Jane", "id" => "2", "age" => "30" },
         { "name" => "Jim", "age" => "35", "id" => "3" }
-        # { "id" => "4", "name" => "", "age" => "40" }
       ]
       actual = []
       OSV.for_each(tempfile.path) { |row| actual << row }

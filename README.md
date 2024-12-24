@@ -112,45 +112,50 @@ Here's some unscientific benchmarks. You can find the code in the [benchmark/com
 ### 10,000 lines
 
 ```
-Benchmarking with 10001 lines of data
+Benchmarking with 100001 lines of data
 
-ruby 3.3.3 (2024-06-12 revision f1c7b6f435) [arm64-darwin23]
+ruby 3.3.6 (2024-11-05 revision 75015d4c1f) [arm64-darwin24]
 Warming up --------------------------------------
-   OSV - Hash output     6.000 i/100ms
+   OSV - Hash output     1.000 i/100ms
    CSV - Hash output     1.000 i/100ms
-  OSV - Array output    18.000 i/100ms
-  CSV - Array output     2.000 i/100ms
+  OSV - Array output     1.000 i/100ms
+OSV - Direct Open Array output
+                        12.719M i/100ms
+  CSV - Array output     1.000 i/100ms
 FastCSV - Array output
-                         9.000 i/100ms
-      OSV - StringIO     7.000 i/100ms
+                         1.000 i/100ms
+      OSV - StringIO     1.000 i/100ms
       CSV - StringIO     1.000 i/100ms
-  FastCSV - StringIO    20.000 i/100ms
-       OSV - Gzipped     6.000 i/100ms
+  FastCSV - StringIO     1.000 i/100ms
+       OSV - Gzipped     1.000 i/100ms
        CSV - Gzipped     1.000 i/100ms
 Calculating -------------------------------------
-   OSV - Hash output     73.360 (± 4.1%) i/s   (13.63 ms/i) -    366.000 in   5.000390s
-   CSV - Hash output     11.937 (±25.1%) i/s   (83.78 ms/i) -     52.000 in   5.036297s
-  OSV - Array output    189.738 (± 8.4%) i/s    (5.27 ms/i) -    954.000 in   5.071018s
-  CSV - Array output     25.471 (±11.8%) i/s   (39.26 ms/i) -    120.000 in   5.015289s
+   OSV - Hash output      6.722 (±14.9%) i/s  (148.77 ms/i) -     59.000 in  10.074753s
+   CSV - Hash output      1.223 (± 0.0%) i/s  (817.62 ms/i) -     13.000 in  10.788284s
+  OSV - Array output     17.284 (±11.6%) i/s   (57.86 ms/i) -    171.000 in  10.007321s
+OSV - Direct Open Array output
+                        213.629M (±13.5%) i/s    (4.68 ns/i) -      1.921B in  10.005506s
+  CSV - Array output      2.193 (± 0.0%) i/s  (455.93 ms/i) -     22.000 in  10.052607s
 FastCSV - Array output
-                         97.867 (± 2.0%) i/s   (10.22 ms/i) -    495.000 in   5.060957s
-      OSV - StringIO     80.784 (± 6.2%) i/s   (12.38 ms/i) -    406.000 in   5.046696s
-      CSV - StringIO     15.872 (± 0.0%) i/s   (63.01 ms/i) -     80.000 in   5.043361s
-  FastCSV - StringIO    200.511 (± 2.0%) i/s    (4.99 ms/i) -      1.020k in   5.088592s
-       OSV - Gzipped     55.220 (±12.7%) i/s   (18.11 ms/i) -    258.000 in   5.030928s
-       CSV - Gzipped     12.591 (±15.9%) i/s   (79.42 ms/i) -     59.000 in   5.039709s
+                          7.993 (± 0.0%) i/s  (125.11 ms/i) -     80.000 in  10.053729s
+      OSV - StringIO      6.626 (±15.1%) i/s  (150.91 ms/i) -     66.000 in  10.103646s
+      CSV - StringIO      1.478 (± 0.0%) i/s  (676.78 ms/i) -     15.000 in  10.158640s
+  FastCSV - StringIO     17.074 (± 5.9%) i/s   (58.57 ms/i) -    171.000 in  10.059266s
+       OSV - Gzipped      5.639 (± 0.0%) i/s  (177.32 ms/i) -     57.000 in  10.152487s
+       CSV - Gzipped      1.176 (± 0.0%) i/s  (850.19 ms/i) -     12.000 in  10.233398s
 
 Comparison:
-  FastCSV - StringIO:      200.5 i/s
-  OSV - Array output:      189.7 i/s - same-ish: difference falls within error
-FastCSV - Array output:       97.9 i/s - 2.05x  slower
-      OSV - StringIO:       80.8 i/s - 2.48x  slower
-   OSV - Hash output:       73.4 i/s - 2.73x  slower
-       OSV - Gzipped:       55.2 i/s - 3.63x  slower
-  CSV - Array output:       25.5 i/s - 7.87x  slower
-      CSV - StringIO:       15.9 i/s - 12.63x  slower
-       CSV - Gzipped:       12.6 i/s - 15.92x  slower
-   CSV - Hash output:       11.9 i/s - 16.80x  slower
+OSV - Direct Open Array output: 213629268.6 i/s
+  OSV - Array output:       17.3 i/s - 12360250.79x  slower
+  FastCSV - StringIO:       17.1 i/s - 12511956.50x  slower
+FastCSV - Array output:        8.0 i/s - 26727225.72x  slower
+   OSV - Hash output:        6.7 i/s - 31780615.83x  slower
+      OSV - StringIO:        6.6 i/s - 32239620.60x  slower
+       OSV - Gzipped:        5.6 i/s - 37881517.48x  slower
+  CSV - Array output:        2.2 i/s - 97400427.87x  slower
+      CSV - StringIO:        1.5 i/s - 144580048.04x  slower
+   CSV - Hash output:        1.2 i/s - 174666591.31x  slower
+       CSV - Gzipped:        1.2 i/s - 181626018.23x  slower
 ```
 
 ### 1,000,000 lines
@@ -174,30 +179,30 @@ FastCSV - Array output
        OSV - Gzipped     1.000 i/100ms
        CSV - Gzipped     1.000 i/100ms
 Calculating -------------------------------------
-   OSV - Hash output      0.502 (± 0.0%) i/s     (1.99 s/i) -      5.000 in  10.293445s
-   CSV - Hash output      0.120 (± 0.0%) i/s     (8.30 s/i) -      2.000 in  16.601119s
-  OSV - Array output      1.291 (±77.4%) i/s  (774.46 ms/i) -     10.000 in  10.627281s
+   OSV - Hash output      0.492 (± 0.0%) i/s     (2.03 s/i) -      5.000 in  10.463278s
+   CSV - Hash output      0.114 (± 0.0%) i/s     (8.75 s/i) -      2.000 in  17.573877s
+  OSV - Array output      1.502 (± 0.0%) i/s  (665.58 ms/i) -     14.000 in  10.217551s
 OSV - Direct Open Array output
-                          1.576 (± 0.0%) i/s  (634.38 ms/i) -     16.000 in  10.499217s
-  CSV - Array output      0.193 (± 0.0%) i/s     (5.17 s/i) -      2.000 in  10.518472s
+                          1.626 (± 0.0%) i/s  (614.90 ms/i) -     16.000 in  10.190323s
+  CSV - Array output      0.183 (± 0.0%) i/s     (5.46 s/i) -      2.000 in  10.951943s
 FastCSV - Array output
-                          0.352 (± 0.0%) i/s     (2.84 s/i) -      4.000 in  11.378973s
-      OSV - StringIO      0.500 (± 0.0%) i/s     (2.00 s/i) -      5.000 in  10.224951s
-      CSV - StringIO      0.134 (± 0.0%) i/s     (7.47 s/i) -      2.000 in  15.090316s
-  FastCSV - StringIO      1.047 (± 0.0%) i/s  (955.00 ms/i) -     11.000 in  10.543497s
-       OSV - Gzipped      0.385 (± 0.0%) i/s     (2.60 s/i) -      4.000 in  10.458821s
-       CSV - Gzipped      0.117 (± 0.0%) i/s     (8.57 s/i) -      2.000 in  17.156519s
+                          0.326 (± 0.0%) i/s     (3.07 s/i) -      4.000 in  12.340605s
+      OSV - StringIO      0.567 (± 0.0%) i/s     (1.76 s/i) -      6.000 in  10.698027s
+      CSV - StringIO      0.141 (± 0.0%) i/s     (7.10 s/i) -      2.000 in  14.237144s
+  FastCSV - StringIO      0.923 (± 0.0%) i/s     (1.08 s/i) -     10.000 in  11.567775s
+       OSV - Gzipped      0.437 (± 0.0%) i/s     (2.29 s/i) -      5.000 in  11.452764s
+       CSV - Gzipped      0.104 (± 0.0%) i/s     (9.64 s/i) -      2.000 in  19.373423s
 
 Comparison:
 OSV - Direct Open Array output:        1.6 i/s
-  OSV - Array output:        1.3 i/s - same-ish: difference falls within error
-  FastCSV - StringIO:        1.0 i/s - 1.51x  slower
-   OSV - Hash output:        0.5 i/s - 3.14x  slower
-      OSV - StringIO:        0.5 i/s - 3.15x  slower
-       OSV - Gzipped:        0.4 i/s - 4.10x  slower
-FastCSV - Array output:        0.4 i/s - 4.47x  slower
-  CSV - Array output:        0.2 i/s - 8.15x  slower
-      CSV - StringIO:        0.1 i/s - 11.78x  slower
-   CSV - Hash output:        0.1 i/s - 13.08x  slower
-       CSV - Gzipped:        0.1 i/s - 13.52x  slower
+  OSV - Array output:        1.5 i/s - 1.08x  slower
+  FastCSV - StringIO:        0.9 i/s - 1.76x  slower
+      OSV - StringIO:        0.6 i/s - 2.87x  slower
+   OSV - Hash output:        0.5 i/s - 3.30x  slower
+       OSV - Gzipped:        0.4 i/s - 3.72x  slower
+FastCSV - Array output:        0.3 i/s - 4.99x  slower
+  CSV - Array output:        0.2 i/s - 8.88x  slower
+      CSV - StringIO:        0.1 i/s - 11.55x  slower
+   CSV - Hash output:        0.1 i/s - 14.24x  slower
+       CSV - Gzipped:        0.1 i/s - 15.68x  slower
 ```

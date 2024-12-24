@@ -3,6 +3,7 @@ use super::{
     parser::RecordParser,
     read_impl::ReadImpl,
     reader::RecordReader,
+    READ_BUFFER_SIZE,
 };
 use flate2::read::GzDecoder;
 use magnus::{rb_sys::AsRawValue, value::ReprValue, Error as MagnusError, RString, Ruby, Value};
@@ -14,6 +15,8 @@ use std::{
     thread,
 };
 use thiserror::Error;
+
+pub(crate) static BUFFER_CHANNEL_SIZE: usize = 1024;
 
 #[derive(Error, Debug)]
 pub enum ReaderError {
@@ -68,7 +71,7 @@ impl<'a, T: RecordParser + Send + 'static> RecordReaderBuilder<'a, T> {
             delimiter: b',',
             quote_char: b'"',
             null_string: None,
-            buffer: 1000,
+            buffer: BUFFER_CHANNEL_SIZE,
             flexible: false,
             flexible_default: None,
             _phantom: PhantomData,
@@ -128,7 +131,7 @@ impl<'a, T: RecordParser + Send + 'static> RecordReaderBuilder<'a, T> {
         }
 
         let file = unsafe { File::from_raw_fd(fd) };
-        Ok(Box::new(BufReader::new(file)))
+        Ok(Box::new(BufReader::with_capacity(READ_BUFFER_SIZE, file)))
     }
 
     fn handle_file_path(&self) -> Result<Box<dyn Read + Send + 'static>, ReaderError> {
@@ -136,24 +139,27 @@ impl<'a, T: RecordParser + Send + 'static> RecordReaderBuilder<'a, T> {
         let file = File::open(&path)?;
 
         Ok(if path.ends_with(".gz") {
-            Box::new(GzDecoder::new(BufReader::new(file)))
+            Box::new(GzDecoder::new(BufReader::with_capacity(
+                READ_BUFFER_SIZE,
+                file,
+            )))
         } else {
-            Box::new(BufReader::new(file))
+            Box::new(BufReader::with_capacity(READ_BUFFER_SIZE, file))
         })
     }
 
-    fn get_reader(&self) -> Result<Box<dyn Read + Send + 'static>, ReaderError> {
+    fn get_reader(&self) -> Result<(Box<dyn Read + Send + 'static>, bool), ReaderError> {
         let string_io: magnus::RClass = self.ruby.eval("StringIO")?;
         let gzip_reader_class: magnus::RClass = self.ruby.eval("Zlib::GzipReader")?;
 
         if self.to_read.is_kind_of(string_io) {
-            self.handle_string_io()
+            self.handle_string_io().map(|r| (r, false))
         } else if self.to_read.is_kind_of(gzip_reader_class) {
             Err(ReaderError::UnsupportedGzipReader)
         } else if self.to_read.is_kind_of(self.ruby.class_io()) {
-            self.handle_file_descriptor()
+            self.handle_file_descriptor().map(|r| (r, true))
         } else {
-            self.handle_file_path()
+            self.handle_file_path().map(|r| (r, false))
         }
     }
 
@@ -175,7 +181,7 @@ impl<'a, T: RecordParser + Send + 'static> RecordReaderBuilder<'a, T> {
 
     pub fn build(self) -> Result<RecordReader<T>, ReaderError> {
         match self.get_reader() {
-            Ok(readable) => self.build_multi_threaded(readable),
+            Ok((readable, should_forget)) => self.build_multi_threaded(readable, should_forget),
             Err(_) => {
                 let readable = self.get_single_threaded_reader()?;
                 self.build_single_threaded(readable)
@@ -186,6 +192,7 @@ impl<'a, T: RecordParser + Send + 'static> RecordReaderBuilder<'a, T> {
     fn build_multi_threaded(
         self,
         readable: Box<dyn Read + Send + 'static>,
+        should_forget: bool,
     ) -> Result<RecordReader<T>, ReaderError> {
         let flexible = self.flexible || self.flexible_default.is_some();
         let mut reader = csv::ReaderBuilder::new()
@@ -204,7 +211,7 @@ impl<'a, T: RecordParser + Send + 'static> RecordReaderBuilder<'a, T> {
 
         let flexible_default = self.flexible_default.clone();
         let handle = thread::spawn(move || {
-            let mut record = csv::StringRecord::new();
+            let mut record = csv::StringRecord::with_capacity(READ_BUFFER_SIZE, headers.len());
             while let Ok(true) = reader.read_record(&mut record) {
                 let row = T::parse(
                     &static_headers,
@@ -216,8 +223,10 @@ impl<'a, T: RecordParser + Send + 'static> RecordReaderBuilder<'a, T> {
                     break;
                 }
             }
-            let file_to_forget = reader.into_inner();
-            std::mem::forget(file_to_forget);
+            if should_forget {
+                let file_to_forget = reader.into_inner();
+                std::mem::forget(file_to_forget);
+            }
         });
 
         Ok(RecordReader {

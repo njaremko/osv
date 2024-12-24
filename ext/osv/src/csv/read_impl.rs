@@ -1,6 +1,8 @@
 use super::{header_cache::StringCache, parser::RecordParser};
 use std::{io::Read, thread};
 
+pub(crate) const READ_BUFFER_SIZE: usize = 8192;
+
 pub enum ReadImpl<T: RecordParser> {
     SingleThreaded {
         reader: csv::Reader<Box<dyn Read>>,
@@ -36,7 +38,7 @@ impl<T: RecordParser> ReadImpl<T> {
                 null_string,
                 flexible_default,
             } => {
-                let mut record = csv::StringRecord::new();
+                let mut record = csv::StringRecord::with_capacity(READ_BUFFER_SIZE, headers.len());
                 match reader.read_record(&mut record) {
                     Ok(true) => Some(T::parse(
                         headers,
