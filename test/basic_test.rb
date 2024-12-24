@@ -114,8 +114,7 @@ class BasicTest < Minitest::Test
   end
 
   def test_parse_csv_with_empty_field
-    tempfile = Tempfile.new(%w[test .csv])
-    begin
+    Tempfile.create(%w[test .csv]) do |tempfile|
       # Copy existing content and add a line with empty field
       content = File.read("test/test.csv")
       content += "4,,40\n"
@@ -131,8 +130,78 @@ class BasicTest < Minitest::Test
       actual = []
       OSV.for_each(tempfile.path) { |row| actual << row }
       assert_equal expected, actual
-    ensure
-      tempfile.unlink
+    end
+  end
+
+  def test_parse_csv_with_missing_field_default_strict
+    Tempfile.create(%w[test .csv]) do |tempfile|
+      content = File.read("test/test.csv")
+      content += "4,oops\n"
+      tempfile.write(content)
+      tempfile.close
+
+      expected = [
+        { "id" => "1", "age" => "25", "name" => "John" },
+        { "name" => "Jane", "id" => "2", "age" => "30" },
+        { "name" => "Jim", "age" => "35", "id" => "3" }
+        # { "id" => "4", "name" => "", "age" => "40" }
+      ]
+      actual = []
+      OSV.for_each(tempfile.path) { |row| actual << row }
+      assert_equal expected, actual
+    end
+  end
+
+  def test_parse_csv_with_missing_field_flexible
+    Tempfile.create(%w[test .csv]) do |tempfile|
+      content = File.read("test/test.csv")
+      content += "4,oops\n"
+      tempfile.write(content)
+      tempfile.close
+
+      expected = [
+        { "id" => "1", "age" => "25", "name" => "John" },
+        { "name" => "Jane", "id" => "2", "age" => "30" },
+        { "name" => "Jim", "age" => "35", "id" => "3" },
+        { "id" => "4", "name" => "oops", "age" => "" }
+      ]
+      actual = []
+      OSV.for_each(tempfile.path, flexible_default: "") { |row| actual << row }
+      assert_equal expected, actual
+    end
+  end
+
+  def test_parse_csv_with_missing_field_flexible_without_headers
+    Tempfile.create(%w[test .csv]) do |tempfile|
+      content = File.read("test/test.csv")
+      content += "4,oops\n"
+      tempfile.write(content)
+      tempfile.close
+
+      expected = [
+        { "c0" => "id", "c1" => "name", "c2" => "age" },
+        { "c1" => "John", "c0" => "1", "c2" => "25" },
+        { "c1" => "Jane", "c2" => "30", "c0" => "2" },
+        { "c0" => "3", "c1" => "Jim", "c2" => "35" },
+        { "c0" => "4", "c2" => "", "c1" => "oops" }
+      ]
+      actual = []
+      OSV.for_each(tempfile.path, has_headers: false, flexible_default: "") { |row| actual << row }
+      assert_equal expected, actual
+    end
+  end
+
+  def test_parse_csv_with_missing_field_flexible_array
+    Tempfile.create(%w[test .csv]) do |tempfile|
+      content = File.read("test/test.csv")
+      content += "4,oops\n"
+      tempfile.write(content)
+      tempfile.close
+
+      expected = [%w[1 John 25], %w[2 Jane 30], %w[3 Jim 35], ["4", "oops", ""]]
+      actual = []
+      OSV.for_each(tempfile.path, flexible_default: "", result_type: "array") { |row| actual << row }
+      assert_equal expected, actual
     end
   end
 

@@ -13,6 +13,7 @@ pub struct CsvArgs {
     pub null_string: Option<String>,
     pub buffer_size: usize,
     pub result_type: String,
+    pub flexible_default: Option<String>,
 }
 
 /// Parse common arguments for CSV parsing
@@ -30,6 +31,7 @@ pub fn parse_csv_args(ruby: &Ruby, args: &[Value]) -> Result<CsvArgs, Error> {
             Option<Option<String>>,
             Option<usize>,
             Option<Value>,
+            Option<Option<String>>,
         ),
         (),
     >(
@@ -42,6 +44,7 @@ pub fn parse_csv_args(ruby: &Ruby, args: &[Value]) -> Result<CsvArgs, Error> {
             "nil_string",
             "buffer_size",
             "result_type",
+            "flexible_default",
         ],
     )?;
 
@@ -111,6 +114,8 @@ pub fn parse_csv_args(ruby: &Ruby, args: &[Value]) -> Result<CsvArgs, Error> {
         None => String::from("hash"),
     };
 
+    let flexible_default = kwargs.optional.6.unwrap_or_default();
+
     Ok(CsvArgs {
         to_read,
         has_headers,
@@ -119,5 +124,6 @@ pub fn parse_csv_args(ruby: &Ruby, args: &[Value]) -> Result<CsvArgs, Error> {
         null_string,
         buffer_size,
         result_type,
+        flexible_default,
     })
 }

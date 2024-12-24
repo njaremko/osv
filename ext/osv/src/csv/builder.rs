@@ -54,6 +54,7 @@ pub struct RecordReaderBuilder<'a, T: RecordParser + Send + 'static> {
     quote_char: u8,
     null_string: Option<String>,
     buffer: usize,
+    flexible_default: Option<String>,
     _phantom: PhantomData<T>,
 }
 
@@ -67,6 +68,7 @@ impl<'a, T: RecordParser + Send + 'static> RecordReaderBuilder<'a, T> {
             quote_char: b'"',
             null_string: None,
             buffer: 1000,
+            flexible_default: None,
             _phantom: PhantomData,
         }
     }
@@ -93,6 +95,11 @@ impl<'a, T: RecordParser + Send + 'static> RecordReaderBuilder<'a, T> {
 
     pub fn buffer(mut self, buffer: usize) -> Self {
         self.buffer = buffer;
+        self
+    }
+
+    pub fn flexible_default(mut self, flexible_default: Option<String>) -> Self {
+        self.flexible_default = flexible_default;
         self
     }
 
@@ -177,6 +184,7 @@ impl<'a, T: RecordParser + Send + 'static> RecordReaderBuilder<'a, T> {
             .has_headers(self.has_headers)
             .delimiter(self.delimiter)
             .quote(self.quote_char)
+            .flexible(self.flexible_default.is_some())
             .from_reader(readable);
 
         let headers = RecordReader::<T>::get_headers(self.ruby, &mut reader, self.has_headers)?;
@@ -186,10 +194,16 @@ impl<'a, T: RecordParser + Send + 'static> RecordReaderBuilder<'a, T> {
         let (sender, receiver) = kanal::bounded(self.buffer);
         let null_string = self.null_string.clone();
 
+        let flexible_default = self.flexible_default.clone();
         let handle = thread::spawn(move || {
             let mut record = csv::StringRecord::new();
             while let Ok(true) = reader.read_record(&mut record) {
-                let row = T::parse(&static_headers, &record, null_string.as_deref());
+                let row = T::parse(
+                    &static_headers,
+                    &record,
+                    null_string.as_deref(),
+                    flexible_default.as_deref(),
+                );
                 if sender.send(row).is_err() {
                     break;
                 }
@@ -215,6 +229,7 @@ impl<'a, T: RecordParser + Send + 'static> RecordReaderBuilder<'a, T> {
             .has_headers(self.has_headers)
             .delimiter(self.delimiter)
             .quote(self.quote_char)
+            .flexible(self.flexible_default.is_some())
             .from_reader(readable);
 
         let headers = RecordReader::<T>::get_headers(self.ruby, &mut reader, self.has_headers)?;
@@ -225,6 +240,7 @@ impl<'a, T: RecordParser + Send + 'static> RecordReaderBuilder<'a, T> {
                 reader,
                 headers: static_headers,
                 null_string: self.null_string,
+                flexible_default: self.flexible_default,
             },
         })
     }

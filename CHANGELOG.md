@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.7
+
+- Added `flexible_default` option to `for_each` that allows flexible parsing of CSV files when set to a string. Defaults to `nil`.
+
 ## 0.3.6
 
 - Fix bug introduced in 0.3.5 where `nil_string` was not being parsed correctly

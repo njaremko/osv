@@ -7,6 +7,7 @@ pub trait RecordParser {
         headers: &[&'static str],
         record: &csv::StringRecord,
         null_string: Option<&str>,
+        flexible_default: Option<&str>,
     ) -> Self::Output;
 }
 
@@ -18,26 +19,24 @@ impl RecordParser for HashMap<&'static str, Option<String>> {
         headers: &[&'static str],
         record: &csv::StringRecord,
         null_string: Option<&str>,
+        flexible_default: Option<&str>,
     ) -> Self::Output {
         let mut map = HashMap::with_capacity(headers.len());
-        headers
-            .iter()
-            .zip(record.iter())
-            .for_each(|(header, field)| {
-                map.insert(
-                    *header,
+        headers.iter().enumerate().for_each(|(i, header)| {
+            let value = record.get(i).map_or_else(
+                || flexible_default.map(|s| s.to_string()),
+                |field| {
                     if null_string == Some(field) {
                         None
+                    } else if field.is_empty() {
+                        Some(String::new())
                     } else {
-                        // Avoid allocating for empty strings
-                        if field.is_empty() {
-                            Some(String::new())
-                        } else {
-                            Some(field.to_string())
-                        }
-                    },
-                );
-            });
+                        Some(field.to_string())
+                    }
+                },
+            );
+            map.insert(*header, value);
+        });
         map
     }
 }
@@ -47,23 +46,29 @@ impl RecordParser for Vec<Option<String>> {
 
     #[inline]
     fn parse(
-        _headers: &[&'static str],
+        headers: &[&'static str],
         record: &csv::StringRecord,
         null_string: Option<&str>,
+        flexible_default: Option<&str>,
     ) -> Self::Output {
-        let mut vec = Vec::with_capacity(record.len());
+        let target_len = headers.len();
+        let mut vec = Vec::with_capacity(target_len);
         vec.extend(record.iter().map(|field| {
             if null_string == Some(field) {
                 None
+            } else if field.is_empty() {
+                Some(String::new())
             } else {
-                // Avoid allocating for empty strings
-                if field.is_empty() {
-                    Some(String::new())
-                } else {
-                    Some(field.to_string())
-                }
+                Some(field.to_string())
             }
         }));
+
+        // Fill remaining slots with flexible_default if needed
+        if let Some(default) = flexible_default {
+            while vec.len() < target_len {
+                vec.push(Some(default.to_string()));
+            }
+        }
         vec
     }
 }
