@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.8
+
+- Added `flexible` option to `for_each` that allows flexible parsing of CSV files without a default value
+
 ## 0.3.7
 
 - Added `flexible_default` option to `for_each` that allows flexible parsing of CSV files when set to a string. Defaults to `nil`.

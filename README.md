@@ -71,7 +71,8 @@ Both methods support the following options:
   - if you want to interpret empty strings as nil, set this to an empty string
 - `buffer_size`: Integer specifying the read buffer size
 - `result_type`: String specifying the output format ("hash" or "array")
-- `flexible_default`: String specifying the default value for missing fields (default: `nil`)
+- `flexible`: Boolean specifying if the parser should be flexible (default: false)
+- `flexible_default`: String specifying the default value for missing fields. Implicitly enables flexible mode if set. (default: `nil`)
 
 ### Input Sources
 

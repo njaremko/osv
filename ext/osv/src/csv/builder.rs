@@ -54,6 +54,7 @@ pub struct RecordReaderBuilder<'a, T: RecordParser + Send + 'static> {
     quote_char: u8,
     null_string: Option<String>,
     buffer: usize,
+    flexible: bool,
     flexible_default: Option<String>,
     _phantom: PhantomData<T>,
 }
@@ -68,6 +69,7 @@ impl<'a, T: RecordParser + Send + 'static> RecordReaderBuilder<'a, T> {
             quote_char: b'"',
             null_string: None,
             buffer: 1000,
+            flexible: false,
             flexible_default: None,
             _phantom: PhantomData,
         }
@@ -95,6 +97,11 @@ impl<'a, T: RecordParser + Send + 'static> RecordReaderBuilder<'a, T> {
 
     pub fn buffer(mut self, buffer: usize) -> Self {
         self.buffer = buffer;
+        self
+    }
+
+    pub fn flexible(mut self, flexible: bool) -> Self {
+        self.flexible = flexible;
         self
     }
 
@@ -180,11 +187,12 @@ impl<'a, T: RecordParser + Send + 'static> RecordReaderBuilder<'a, T> {
         self,
         readable: Box<dyn Read + Send + 'static>,
     ) -> Result<RecordReader<T>, ReaderError> {
+        let flexible = self.flexible || self.flexible_default.is_some();
         let mut reader = csv::ReaderBuilder::new()
             .has_headers(self.has_headers)
             .delimiter(self.delimiter)
             .quote(self.quote_char)
-            .flexible(self.flexible_default.is_some())
+            .flexible(flexible)
             .from_reader(readable);
 
         let headers = RecordReader::<T>::get_headers(self.ruby, &mut reader, self.has_headers)?;
@@ -225,11 +233,12 @@ impl<'a, T: RecordParser + Send + 'static> RecordReaderBuilder<'a, T> {
         self,
         readable: Box<dyn Read>,
     ) -> Result<RecordReader<T>, ReaderError> {
+        let flexible = self.flexible || self.flexible_default.is_some();
         let mut reader = csv::ReaderBuilder::new()
             .has_headers(self.has_headers)
             .delimiter(self.delimiter)
             .quote(self.quote_char)
-            .flexible(self.flexible_default.is_some())
+            .flexible(flexible)
             .from_reader(readable);
 
         let headers = RecordReader::<T>::get_headers(self.ruby, &mut reader, self.has_headers)?;
