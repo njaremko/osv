@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.6
+
+- Fix bug introduced in 0.3.5 where `nil_string` was not being parsed correctly
+
 ## 0.3.5
 
 - `nil_string` no longer defaults to an empty string. It now defaults to `nil`. Which means that empty strings are interpreted as empty strings.

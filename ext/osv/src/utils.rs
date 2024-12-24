@@ -27,7 +27,7 @@ pub fn parse_csv_args(ruby: &Ruby, args: &[Value]) -> Result<CsvArgs, Error> {
             Option<bool>,
             Option<String>,
             Option<String>,
-            Option<String>,
+            Option<Option<String>>,
             Option<usize>,
             Option<Value>,
         ),
@@ -73,7 +73,7 @@ pub fn parse_csv_args(ruby: &Ruby, args: &[Value]) -> Result<CsvArgs, Error> {
             )
         })?;
 
-    let null_string = kwargs.optional.3;
+    let null_string = kwargs.optional.3.unwrap_or_default();
 
     let buffer_size = kwargs.optional.4.unwrap_or(1000);
 
