@@ -11,7 +11,7 @@ Rake::ExtensionTask.new("osv") do |c|
 end
 
 task :dev do
-  ENV["RB_SYS_CARGO_PROFILE"] = "dev"
+  ENV["RB_SYS_CARGO_PROFILE"] = "release"
 end
 
 Rake::TestTask.new do |t|

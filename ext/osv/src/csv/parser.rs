@@ -53,20 +53,21 @@ impl RecordParser for Vec<Option<String>> {
     ) -> Self::Output {
         let target_len = headers.len();
         let mut vec = Vec::with_capacity(target_len);
-
-        vec.extend(record.iter().map(|field| {
-            if null_string == Some(field) {
+        for field in record.iter() {
+            let value = if Some(field) == null_string {
                 None
             } else if field.is_empty() {
                 Some(String::new())
             } else {
-                Some(field.to_string())
-            }
-        }));
+                Some(field.into())
+            };
+            vec.push(value);
+        }
 
-        if let Some(default) = flexible_default {
-            let default = default.to_string();
-            vec.resize_with(target_len, || Some(default.clone()));
+        if vec.len() < target_len {
+            if let Some(default) = flexible_default {
+                vec.resize_with(target_len, || Some(default.to_string()));
+            }
         }
         vec
     }
