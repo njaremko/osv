@@ -3,11 +3,12 @@ use crate::utils::*;
 use magnus::value::ReprValue;
 use magnus::{block::Yield, Error, KwArgs, RHash, Ruby, Symbol, Value};
 use std::collections::HashMap;
+use xxhash_rust::xxh3::Xxh3Builder;
 
 pub fn parse_csv(
     rb_self: Value,
     args: &[Value],
-) -> Result<Yield<Box<dyn Iterator<Item = CsvRecord>>>, Error> {
+) -> Result<Yield<Box<dyn Iterator<Item = CsvRecord<Xxh3Builder>>>>, Error> {
     let ruby = unsafe { Ruby::get_unchecked() };
 
     let CsvArgs {
@@ -37,18 +38,20 @@ pub fn parse_csv(
         });
     }
 
-    let iter: Box<dyn Iterator<Item = CsvRecord>> = match result_type.as_str() {
+    let iter: Box<dyn Iterator<Item = CsvRecord<Xxh3Builder>>> = match result_type.as_str() {
         "hash" => Box::new(
-            RecordReaderBuilder::<HashMap<&'static str, Option<String>>>::new(&ruby, to_read)
-                .has_headers(has_headers)
-                .flexible(flexible)
-                .flexible_default(flexible_default)
-                .delimiter(delimiter)
-                .quote_char(quote_char)
-                .null_string(null_string)
-                .buffer(buffer_size)
-                .build()?
-                .map(CsvRecord::Map),
+            RecordReaderBuilder::<HashMap<&'static str, Option<String>, Xxh3Builder>>::new(
+                &ruby, to_read,
+            )
+            .has_headers(has_headers)
+            .flexible(flexible)
+            .flexible_default(flexible_default)
+            .delimiter(delimiter)
+            .quote_char(quote_char)
+            .null_string(null_string)
+            .buffer(buffer_size)
+            .build()?
+            .map(CsvRecord::Map),
         ),
         "array" => Box::new(
             RecordReaderBuilder::<Vec<Option<String>>>::new(&ruby, to_read)
@@ -88,7 +91,7 @@ struct EnumeratorArgs {
 
 fn create_enumerator(
     args: EnumeratorArgs,
-) -> Result<Yield<Box<dyn Iterator<Item = CsvRecord>>>, Error> {
+) -> Result<Yield<Box<dyn Iterator<Item = CsvRecord<Xxh3Builder>>>>, Error> {
     let kwargs = RHash::new();
     kwargs.aset(Symbol::new("has_headers"), args.has_headers)?;
     kwargs.aset(

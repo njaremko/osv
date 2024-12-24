@@ -1,13 +1,13 @@
 use magnus::{IntoValue, Ruby, Value};
-use std::collections::HashMap;
+use std::{collections::HashMap, hash::BuildHasher};
 
 #[derive(Debug)]
-pub enum CsvRecord {
+pub enum CsvRecord<S: BuildHasher + Default> {
     Vec(Vec<Option<String>>),
-    Map(HashMap<&'static str, Option<String>>),
+    Map(HashMap<&'static str, Option<String>, S>),
 }
 
-impl IntoValue for CsvRecord {
+impl<S: BuildHasher + Default> IntoValue for CsvRecord<S> {
     #[inline]
     fn into_value_with(self, handle: &Ruby) -> Value {
         match self {

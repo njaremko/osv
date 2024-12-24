@@ -15,3 +15,4 @@ rb-sys = "^0.9"
 serde = { version = "1.0", features = ["derive"] }
 serde_magnus = "0.8.1"
 thiserror = "2.0"
+xxhash-rust = { version = "0.8.12", features = ["xxh3"] }

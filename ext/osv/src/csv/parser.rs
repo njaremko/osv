@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::hash::BuildHasher;
 
 pub trait RecordParser {
     type Output;
@@ -11,7 +12,7 @@ pub trait RecordParser {
     ) -> Self::Output;
 }
 
-impl RecordParser for HashMap<&'static str, Option<String>> {
+impl<S: BuildHasher + Default> RecordParser for HashMap<&'static str, Option<String>, S> {
     type Output = Self;
 
     #[inline]
@@ -21,7 +22,7 @@ impl RecordParser for HashMap<&'static str, Option<String>> {
         null_string: Option<&str>,
         flexible_default: Option<&str>,
     ) -> Self::Output {
-        let mut map = HashMap::with_capacity(headers.len());
+        let mut map = HashMap::with_capacity_and_hasher(headers.len(), S::default());
         headers.iter().enumerate().for_each(|(i, &header)| {
             let value = record.get(i).map_or_else(
                 || flexible_default.map(ToString::to_string),
@@ -31,7 +32,7 @@ impl RecordParser for HashMap<&'static str, Option<String>> {
                     } else if field.is_empty() {
                         Some(String::new())
                     } else {
-                        Some(field.to_string())
+                        Some(field.into())
                     }
                 },
             );

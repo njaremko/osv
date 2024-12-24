@@ -35,15 +35,17 @@ begin
   puts "Benchmarking with #{`wc -l benchmark/test.csv`.to_i} lines of data\n\n"
 
   Benchmark.ips do |x|
-    x.config(time: 5, warmup: 2)
+    x.config(time: 10, warmup: 5)
 
     x.report("OSV - Hash output") { File.open("benchmark/test.csv") { |f| OSV.for_each(f).to_a } }
 
-    # x.report("CSV - Hash output") { File.open("benchmark/test.csv") { |f| CSV.new(f, headers: true).map(&:to_h) } }
+    x.report("CSV - Hash output") { File.open("benchmark/test.csv") { |f| CSV.new(f, headers: true).map(&:to_h) } }
 
     x.report("OSV - Array output") { File.open("benchmark/test.csv") { |f| OSV.for_each(f, result_type: :array).to_a } }
 
-    # x.report("CSV - Array output") { File.open("benchmark/test.csv") { |f| CSV.new(f).read } }
+    x.report("OSV - Direct Open Array output") { |f| OSV.for_each("benchmark/test.csv", result_type: :array).to_a }
+
+    x.report("CSV - Array output") { File.open("benchmark/test.csv") { |f| CSV.new(f).read } }
 
     x.report("FastCSV - Array output") do
       result = []
@@ -57,13 +59,13 @@ begin
       io.close
     end
 
-    # x.report("CSV - StringIO") do
-    #   io = StringIO.new(test_data)
-    #   result = CSV.new(io, headers: true).map(&:to_h)
-    #   io.close
+    x.report("CSV - StringIO") do
+      io = StringIO.new(test_data)
+      result = CSV.new(io, headers: true).map(&:to_h)
+      io.close
 
-    #   result
-    # end
+      result
+    end
 
     x.report("FastCSV - StringIO") do
       result = []
@@ -76,9 +78,9 @@ begin
 
     x.report("OSV - Gzipped") { Zlib::GzipReader.open("benchmark/test.csv.gz") { |gz| OSV.for_each(gz).to_a } }
 
-    # x.report("CSV - Gzipped") do
-    #   Zlib::GzipReader.open("benchmark/test.csv.gz") { |gz| CSV.new(gz, headers: true).map(&:to_h) }
-    # end
+    x.report("CSV - Gzipped") do
+      Zlib::GzipReader.open("benchmark/test.csv.gz") { |gz| CSV.new(gz, headers: true).map(&:to_h) }
+    end
 
     x.compare!
   end
