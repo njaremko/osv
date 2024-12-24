@@ -4,3 +4,5 @@
 .direnv
 pkg/
 **/.DS_Store
+.env
+/benchmark/*.csv*

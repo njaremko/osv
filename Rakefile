@@ -1,17 +1,19 @@
 # frozen_string_literal: true
 
 require "rake/testtask"
-require "rake/extensiontask"
+require "rb_sys/extensiontask"
 
 task default: :test
 
-Rake::ExtensionTask.new("osv") do |c|
-  c.lib_dir = "lib/osv"
-  c.ext_dir = "ext/osv"
+GEMSPEC = Gem::Specification.load("osv.gemspec")
+
+RbSys::ExtensionTask.new("osv", GEMSPEC) do |ext|
+  ext.lib_dir = "lib/osv"
+  ext.ext_dir = "ext/osv"
 end
 
 task :dev do
-  ENV["RB_SYS_CARGO_PROFILE"] = "release"
+  ENV["RB_SYS_CARGO_PROFILE"] = "dev"
 end
 
 Rake::TestTask.new do |t|
