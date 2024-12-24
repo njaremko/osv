@@ -59,6 +59,7 @@ pub struct RecordReaderBuilder<'a, T: RecordParser + Send + 'static> {
     buffer: usize,
     flexible: bool,
     flexible_default: Option<String>,
+    trim: csv::Trim,
     _phantom: PhantomData<T>,
 }
 
@@ -74,6 +75,7 @@ impl<'a, T: RecordParser + Send + 'static> RecordReaderBuilder<'a, T> {
             buffer: BUFFER_CHANNEL_SIZE,
             flexible: false,
             flexible_default: None,
+            trim: csv::Trim::None,
             _phantom: PhantomData,
         }
     }
@@ -110,6 +112,11 @@ impl<'a, T: RecordParser + Send + 'static> RecordReaderBuilder<'a, T> {
 
     pub fn flexible_default(mut self, flexible_default: Option<String>) -> Self {
         self.flexible_default = flexible_default;
+        self
+    }
+
+    pub fn trim(mut self, trim: csv::Trim) -> Self {
+        self.trim = trim;
         self
     }
 
@@ -200,6 +207,7 @@ impl<'a, T: RecordParser + Send + 'static> RecordReaderBuilder<'a, T> {
             .delimiter(self.delimiter)
             .quote(self.quote_char)
             .flexible(flexible)
+            .trim(self.trim)
             .from_reader(readable);
 
         let headers = RecordReader::<T>::get_headers(self.ruby, &mut reader, self.has_headers)?;
@@ -248,6 +256,7 @@ impl<'a, T: RecordParser + Send + 'static> RecordReaderBuilder<'a, T> {
             .delimiter(self.delimiter)
             .quote(self.quote_char)
             .flexible(flexible)
+            .trim(self.trim)
             .from_reader(readable);
 
         let headers = RecordReader::<T>::get_headers(self.ruby, &mut reader, self.has_headers)?;

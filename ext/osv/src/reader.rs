@@ -1,5 +1,6 @@
 use crate::csv::{CsvRecord, RecordReaderBuilder};
 use crate::utils::*;
+use csv::Trim;
 use magnus::value::ReprValue;
 use magnus::{block::Yield, Error, KwArgs, RHash, Ruby, Symbol, Value};
 use std::collections::HashMap;
@@ -21,6 +22,7 @@ pub fn parse_csv(
         result_type,
         flexible,
         flexible_default,
+        trim,
     } = parse_csv_args(&ruby, args)?;
 
     if !ruby.block_given() {
@@ -35,6 +37,12 @@ pub fn parse_csv(
             result_type,
             flexible,
             flexible_default,
+            trim: match trim {
+                Trim::All => Some("all".to_string()),
+                Trim::Headers => Some("headers".to_string()),
+                Trim::Fields => Some("fields".to_string()),
+                _ => None,
+            },
         });
     }
 
@@ -46,6 +54,7 @@ pub fn parse_csv(
             .has_headers(has_headers)
             .flexible(flexible)
             .flexible_default(flexible_default)
+            .trim(trim)
             .delimiter(delimiter)
             .quote_char(quote_char)
             .null_string(null_string)
@@ -58,6 +67,7 @@ pub fn parse_csv(
                 .has_headers(has_headers)
                 .flexible(flexible)
                 .flexible_default(flexible_default)
+                .trim(trim)
                 .delimiter(delimiter)
                 .quote_char(quote_char)
                 .null_string(null_string)
@@ -87,6 +97,7 @@ struct EnumeratorArgs {
     result_type: String,
     flexible: bool,
     flexible_default: Option<String>,
+    trim: Option<String>,
 }
 
 fn create_enumerator(
@@ -107,6 +118,7 @@ fn create_enumerator(
     kwargs.aset(Symbol::new("result_type"), Symbol::new(args.result_type))?;
     kwargs.aset(Symbol::new("flexible"), args.flexible)?;
     kwargs.aset(Symbol::new("flexible_default"), args.flexible_default)?;
+    kwargs.aset(Symbol::new("trim"), args.trim.map(Symbol::new))?;
     let enumerator = args
         .rb_self
         .enumeratorize("for_each", (args.to_read, KwArgs(kwargs)));

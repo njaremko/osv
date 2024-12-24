@@ -298,6 +298,63 @@ class BasicTest < Minitest::Test
     assert_equal expected, result.to_a
   end
 
+  def test_for_each_trim_all
+    csv_content = <<~CSV
+      id , name , age
+      1 , John , 25
+      2 , Jane , 30
+      3 , Jim , 35
+    CSV
+
+    expected = [
+      { "id" => "1", "name" => "John", "age" => "25" },
+      { "id" => "2", "name" => "Jane", "age" => "30" },
+      { "id" => "3", "name" => "Jim", "age" => "35" }
+    ]
+
+    actual = []
+    StringIO.new(csv_content).tap { |io| OSV.for_each(io, trim: "all") { |row| actual << row } }
+    assert_equal expected, actual
+  end
+
+  def test_for_each_trim_headers
+    csv_content = <<~CSV
+      id , name , age
+      1, John, 25
+      2, Jane, 30
+      3, Jim, 35
+    CSV
+
+    expected = [
+      { "id" => "1", "name" => " John", "age" => " 25" },
+      { "id" => "2", "name" => " Jane", "age" => " 30" },
+      { "id" => "3", "name" => " Jim", "age" => " 35" }
+    ]
+
+    actual = []
+    StringIO.new(csv_content).tap { |io| OSV.for_each(io, trim: :headers) { |row| actual << row } }
+    assert_equal expected, actual
+  end
+
+  def test_for_each_trim_fields
+    csv_content = <<~CSV
+      id,name,age
+      1 , John , 25
+      2 , Jane , 30
+      3 , Jim , 35
+    CSV
+
+    expected = [
+      { "id" => "1", "name" => "John", "age" => "25" },
+      { "id" => "2", "name" => "Jane", "age" => "30" },
+      { "id" => "3", "name" => "Jim", "age" => "35" }
+    ]
+
+    actual = []
+    StringIO.new(csv_content).tap { |io| OSV.for_each(io, trim: "fields") { |row| actual << row } }
+    assert_equal expected, actual
+  end
+
   def test_parse_csv_in_multiple_threads
     expected = [
       { "id" => "1", "age" => "25", "name" => "John" },

@@ -14,12 +14,15 @@ module OSV
   #                   an empty string.
   #   - `buffer_size`: Integer specifying the read buffer size
   #   - `result_type`: String specifying the output format
-  #                    ("hash" or "array")
+  #                    ("hash" or "array" or :hash or :array)
   #   - `flexible`: Boolean specifying if the parser should be flexible
   #                 (default: false)
   #   - `flexible_default`: String specifying the default value for missing fields.
   #                         Implicitly enables flexible mode if set.
   #                         (default: `nil`)
+  #   - `trim`: String specifying the trim mode
+  #             ("all" or "headers" or "fields" or :all or :headers or :fields)
+  #             (default: `nil`)
   sig do
     params(
       input: T.any(String, StringIO, IO),
@@ -28,9 +31,10 @@ module OSV
       quote_char: T.nilable(String),
       nil_string: T.nilable(String),
       buffer_size: T.nilable(Integer),
-      result_type: T.nilable(String),
+      result_type: T.nilable(T.any(String, Symbol)),
       flexible: T.nilable(T::Boolean),
       flexible_default: T.nilable(String),
+      trim: T.nilable(T.any(String, Symbol)),
       blk: T.nilable(T.proc.params(row: T.any(T::Hash[String, T.nilable(String)], T::Array[T.nilable(String)])).void)
     ).returns(T.any(Enumerator, T.untyped))
   end
@@ -44,6 +48,7 @@ module OSV
     result_type: nil,
     flexible: nil,
     flexible_default: nil,
+    trim: nil,
     &blk
   )
   end

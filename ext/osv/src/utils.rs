@@ -6,6 +6,27 @@ use magnus::{
 
 use crate::csv::BUFFER_CHANNEL_SIZE;
 
+fn parse_string_or_symbol(ruby: &Ruby, value: Value) -> Result<Option<String>, Error> {
+    if value.is_nil() {
+        Ok(None)
+    } else if value.is_kind_of(ruby.class_string()) {
+        RString::from_value(value)
+            .ok_or_else(|| Error::new(magnus::exception::type_error(), "Invalid string value"))?
+            .to_string()
+            .map(|s| Some(s))
+    } else if value.is_kind_of(ruby.class_symbol()) {
+        Symbol::from_value(value)
+            .ok_or_else(|| Error::new(magnus::exception::type_error(), "Invalid symbol value"))?
+            .funcall("to_s", ())
+            .map(|s| Some(s))
+    } else {
+        Err(Error::new(
+            magnus::exception::type_error(),
+            "Value must be a String or Symbol",
+        ))
+    }
+}
+
 #[derive(Debug)]
 pub struct CsvArgs {
     pub to_read: Value,
@@ -17,6 +38,7 @@ pub struct CsvArgs {
     pub result_type: String,
     pub flexible: bool,
     pub flexible_default: Option<String>,
+    pub trim: csv::Trim,
 }
 
 /// Parse common arguments for CSV parsing
@@ -36,6 +58,7 @@ pub fn parse_csv_args(ruby: &Ruby, args: &[Value]) -> Result<CsvArgs, Error> {
             Option<Value>,
             Option<bool>,
             Option<Option<String>>,
+            Option<Value>,
         ),
         (),
     >(
@@ -50,6 +73,7 @@ pub fn parse_csv_args(ruby: &Ruby, args: &[Value]) -> Result<CsvArgs, Error> {
             "result_type",
             "flexible",
             "flexible_default",
+            "trim",
         ],
     )?;
 
@@ -85,36 +109,26 @@ pub fn parse_csv_args(ruby: &Ruby, args: &[Value]) -> Result<CsvArgs, Error> {
 
     let buffer_size = kwargs.optional.4.unwrap_or(BUFFER_CHANNEL_SIZE);
 
-    let result_type = match kwargs.optional.5 {
-        Some(value) => {
-            let parsed = if value.is_kind_of(ruby.class_string()) {
-                RString::from_value(value)
-                    .ok_or_else(|| {
-                        Error::new(magnus::exception::type_error(), "Invalid string value")
-                    })?
-                    .to_string()?
-            } else if value.is_kind_of(ruby.class_symbol()) {
-                Symbol::from_value(value)
-                    .ok_or_else(|| {
-                        Error::new(magnus::exception::type_error(), "Invalid symbol value")
-                    })?
-                    .funcall("to_s", ())?
-            } else {
+    let result_type = match kwargs
+        .optional
+        .5
+        .map(|value| parse_string_or_symbol(ruby, value))
+    {
+        Some(Ok(Some(parsed))) => match parsed.as_str() {
+            "hash" | "array" => parsed,
+            _ => {
                 return Err(Error::new(
-                    magnus::exception::type_error(),
-                    "result_type must be a String or Symbol",
-                ));
-            };
-
-            match parsed.as_str() {
-                "hash" | "array" => parsed,
-                _ => {
-                    return Err(Error::new(
-                        magnus::exception::runtime_error(),
-                        "result_type must be either 'hash' or 'array'",
-                    ))
-                }
+                    magnus::exception::runtime_error(),
+                    "result_type must be either 'hash' or 'array'",
+                ))
             }
+        },
+        Some(Ok(None)) => String::from("hash"),
+        Some(Err(_)) => {
+            return Err(Error::new(
+                magnus::exception::type_error(),
+                "result_type must be a String or Symbol",
+            ))
         }
         None => String::from("hash"),
     };
@@ -122,6 +136,35 @@ pub fn parse_csv_args(ruby: &Ruby, args: &[Value]) -> Result<CsvArgs, Error> {
     let flexible = kwargs.optional.6.unwrap_or_default();
 
     let flexible_default = kwargs.optional.7.unwrap_or_default();
+
+    let trim = match kwargs
+        .optional
+        .8
+        .map(|value| parse_string_or_symbol(ruby, value))
+    {
+        Some(Ok(Some(parsed))) => match parsed.as_str() {
+            "all" => csv::Trim::All,
+            "headers" => csv::Trim::Headers,
+            "fields" => csv::Trim::Fields,
+            invalid => {
+                return Err(Error::new(
+                    magnus::exception::runtime_error(),
+                    format!(
+                        "trim must be either 'all', 'headers', or 'fields' but got '{}'",
+                        invalid
+                    ),
+                ))
+            }
+        },
+        Some(Ok(None)) => csv::Trim::None,
+        Some(Err(_)) => {
+            return Err(Error::new(
+                magnus::exception::type_error(),
+                "trim must be a String or Symbol",
+            ))
+        }
+        None => csv::Trim::None,
+    };
 
     Ok(CsvArgs {
         to_read,
@@ -133,5 +176,6 @@ pub fn parse_csv_args(ruby: &Ruby, args: &[Value]) -> Result<CsvArgs, Error> {
         result_type,
         flexible,
         flexible_default,
+        trim,
     })
 }

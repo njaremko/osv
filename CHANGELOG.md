@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.10
+
+- Added `trim` option to `for_each` that allows trimming of fields and headers
+
+## 0.3.9
+
+- Some optimizations, and a fix for a bug where file handles weren't being closed
+
 ## 0.3.8
 
 - Added `flexible` option to `for_each` that allows flexible parsing of CSV files without a default value

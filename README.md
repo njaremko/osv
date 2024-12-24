@@ -70,9 +70,10 @@ Both methods support the following options:
   - by default, empty strings are interpreted as empty strings
   - if you want to interpret empty strings as nil, set this to an empty string
 - `buffer_size`: Integer specifying the read buffer size
-- `result_type`: String specifying the output format ("hash" or "array")
+- `result_type`: String specifying the output format ("hash" or "array" or :hash or :array)
 - `flexible`: Boolean specifying if the parser should be flexible (default: false)
 - `flexible_default`: String specifying the default value for missing fields. Implicitly enables flexible mode if set. (default: `nil`)
+- `trim`: String specifying the trim mode ("all" or "headers" or "fields" or :all or :headers or :fields)
 
 ### Input Sources
 
