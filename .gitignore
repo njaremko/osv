@@ -2,3 +2,5 @@
 /tmp
 /**/*.bundle
 .direnv
+pkg/
+**/.DS_Store

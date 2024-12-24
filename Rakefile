@@ -23,6 +23,7 @@ end
 
 task :release do
   sh "bundle exec rake test"
-  sh "gem build osv.gemspec"
-  sh "gem push osv-#{OSV::VERSION}.gem"
+  sh "mkdir -p pkg"
+  sh "gem build osv.gemspec -o pkg/osv-#{OSV::VERSION}.gem"
+  sh "gem push pkg/osv-#{OSV::VERSION}.gem"
 end
