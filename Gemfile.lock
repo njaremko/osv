@@ -1,6 +1,15 @@
+PATH
+  remote: .
+  specs:
+    osv (0.3.4)
+      rb_sys (~> 0.9.39)
+
 GEM
   remote: https://rubygems.org/
   specs:
+    benchmark-ips (2.14.0)
+    csv (3.3.2)
+    fastcsv (0.0.7)
     minitest (5.25.4)
     rake (13.2.1)
     rake-compiler (1.2.0)
@@ -12,9 +21,13 @@ PLATFORMS
   ruby
 
 DEPENDENCIES
+  benchmark-ips (~> 2.12)
+  csv
+  fastcsv (~> 0.0.7)
   minitest (~> 5.0)
+  osv!
   rake
-  rake-compiler (= 1.2.0)
+  rake-compiler (~> 1.2.0)
   rb_sys (~> 0.9.56)
 
 BUNDLED WITH

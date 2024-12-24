@@ -1,4 +1,4 @@
-use magnus::{IntoValue, RHash, Ruby, Value};
+use magnus::{IntoValue, Ruby, Value};
 use std::collections::HashMap;
 
 #[derive(Debug)]
@@ -8,14 +8,16 @@ pub enum CsvRecord {
 }
 
 impl IntoValue for CsvRecord {
+    #[inline]
     fn into_value_with(self, handle: &Ruby) -> Value {
         match self {
             CsvRecord::Vec(vec) => vec.into_value_with(handle),
             CsvRecord::Map(map) => {
-                let hash = RHash::new();
-                for (k, v) in map {
-                    hash.aset(k, v).unwrap();
-                }
+                // Pre-allocate the hash with the known size
+                let hash = handle.hash_new_capa(map.len());
+                map.into_iter()
+                    .try_for_each(|(k, v)| hash.aset(k, v))
+                    .unwrap();
                 hash.into_value_with(handle)
             }
         }

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.4
+
+- Added support for handling non-file backed IO objects in single threaded mode
+- General refactoring to improve performance and reduce allocations
+
 ## 0.3.3
 
 - Added support for gzip files

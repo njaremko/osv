@@ -1,66 +1,35 @@
-use super::{header_cache::StringCache, parser::RecordParser};
+use super::{parser::RecordParser, read_impl::ReadImpl};
 use magnus::{Error, Ruby};
-use std::{io::Read, thread};
+use std::{borrow::Cow, io::Read};
 
 pub struct RecordReader<T: RecordParser> {
     pub(crate) reader: ReadImpl<T>,
 }
 
-impl<T: RecordParser> Drop for RecordReader<T> {
-    fn drop(&mut self) {
-        match &mut self.reader {
-            ReadImpl::MultiThreaded {
-                receiver,
-                handle,
-                headers,
-            } => {
-                receiver.close();
-                if let Some(handle) = handle.take() {
-                    let _ = handle.join();
-                }
-                StringCache::clear(headers).unwrap();
-            }
-            ReadImpl::SingleThreaded { headers, .. } => {
-                StringCache::clear(headers).unwrap();
-            }
-        }
-    }
-}
-
-#[allow(dead_code)]
-pub enum ReadImpl<T: RecordParser> {
-    SingleThreaded {
-        reader: csv::Reader<Box<dyn Read>>,
-        headers: Vec<&'static str>,
-        null_string: String,
-    },
-    MultiThreaded {
-        headers: Vec<&'static str>,
-        receiver: kanal::Receiver<T::Output>,
-        handle: Option<thread::JoinHandle<()>>,
-    },
-}
-
 impl<T: RecordParser> RecordReader<T> {
+    #[inline]
     pub(crate) fn get_headers(
         ruby: &Ruby,
         reader: &mut csv::Reader<impl Read>,
         has_headers: bool,
     ) -> Result<Vec<String>, Error> {
-        let first_row = reader
-            .headers()
-            .map_err(|e| {
-                Error::new(
-                    ruby.exception_runtime_error(),
-                    format!("Failed to read headers: {e}"),
-                )
-            })?
-            .clone();
+        let first_row = reader.headers().map_err(|e| {
+            Error::new(
+                ruby.exception_runtime_error(),
+                Cow::Owned(format!("Failed to read headers: {e}")),
+            )
+        })?;
 
         Ok(if has_headers {
-            first_row.iter().map(String::from).collect()
+            // Pre-allocate the vector with exact capacity
+            let mut headers = Vec::with_capacity(first_row.len());
+            headers.extend(first_row.iter().map(String::from));
+            headers
         } else {
-            (0..first_row.len()).map(|i| format!("c{i}")).collect()
+            // Pre-allocate the vector with exact capacity
+            let mut headers = Vec::with_capacity(first_row.len());
+            headers.extend((0..first_row.len()).map(|i| format!("c{i}")));
+            headers
         })
     }
 }
@@ -68,30 +37,21 @@ impl<T: RecordParser> RecordReader<T> {
 impl<T: RecordParser> Iterator for RecordReader<T> {
     type Item = T::Output;
 
+    #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        match &mut self.reader {
-            ReadImpl::MultiThreaded {
-                receiver, handle, ..
-            } => match receiver.recv() {
-                Ok(record) => Some(record),
-                Err(_) => {
-                    if let Some(handle) = handle.take() {
-                        let _ = handle.join();
-                    }
-                    None
-                }
-            },
-            ReadImpl::SingleThreaded {
-                reader,
-                headers,
-                null_string,
-            } => {
-                let mut record = csv::StringRecord::new();
-                match reader.read_record(&mut record) {
-                    Ok(true) => Some(T::parse(headers, &record, null_string)),
-                    _ => None,
-                }
-            }
-        }
+        self.reader.next()
+    }
+
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        // We can't know the exact size without reading the whole file
+        (0, None)
+    }
+}
+
+impl<T: RecordParser> Drop for RecordReader<T> {
+    #[inline]
+    fn drop(&mut self) {
+        self.reader.cleanup();
     }
 }

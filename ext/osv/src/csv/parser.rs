@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 pub trait RecordParser {
     type Output;
+
     fn parse(
         headers: &[&'static str],
         record: &csv::StringRecord,
@@ -11,41 +12,58 @@ pub trait RecordParser {
 
 impl RecordParser for HashMap<&'static str, Option<String>> {
     type Output = Self;
+
+    #[inline]
     fn parse(
         headers: &[&'static str],
         record: &csv::StringRecord,
         null_string: &str,
     ) -> Self::Output {
         let mut map = HashMap::with_capacity(headers.len());
-        for (header, field) in headers.iter().zip(record.iter()) {
-            map.insert(
-                *header,
-                if field == null_string {
-                    None
-                } else {
-                    Some(field.to_string())
-                },
-            );
-        }
+        headers
+            .iter()
+            .zip(record.iter())
+            .for_each(|(header, field)| {
+                map.insert(
+                    *header,
+                    if field == null_string {
+                        None
+                    } else {
+                        // Avoid allocating for empty strings
+                        if field.is_empty() {
+                            Some(String::new())
+                        } else {
+                            Some(field.to_string())
+                        }
+                    },
+                );
+            });
         map
     }
 }
 
 impl RecordParser for Vec<Option<String>> {
     type Output = Self;
+
+    #[inline]
     fn parse(
         _headers: &[&'static str],
         record: &csv::StringRecord,
         null_string: &str,
     ) -> Self::Output {
         let mut vec = Vec::with_capacity(record.len());
-        for field in record.iter() {
-            vec.push(if field == null_string {
+        vec.extend(record.iter().map(|field| {
+            if field == null_string {
                 None
             } else {
-                Some(field.to_string())
-            });
-        }
+                // Avoid allocating for empty strings
+                if field.is_empty() {
+                    Some(String::new())
+                } else {
+                    Some(field.to_string())
+                }
+            }
+        }));
         vec
     }
 }
