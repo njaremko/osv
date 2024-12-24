@@ -30,7 +30,7 @@ impl<T: RecordParser> Drop for RecordReader<T> {
 #[allow(dead_code)]
 pub enum ReadImpl<T: RecordParser> {
     SingleThreaded {
-        reader: csv::Reader<Box<dyn Read + Send + 'static>>,
+        reader: csv::Reader<Box<dyn Read>>,
         headers: Vec<&'static str>,
         null_string: String,
     },

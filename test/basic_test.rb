@@ -190,4 +190,22 @@ class BasicTest < Minitest::Test
 
     threads.each(&:join)
   end
+
+  def test_parse_csv_with_gzip_io
+    expected = [
+      { "id" => "1", "age" => "25", "name" => "John" },
+      { "name" => "Jane", "id" => "2", "age" => "30" },
+      { "name" => "Jim", "age" => "35", "id" => "3" }
+    ]
+    actual = []
+    File.open("test/test2.csv.gz", "wb") do |gz_file|
+      gz = Zlib::GzipWriter.new(gz_file)
+      gz.write(File.read("test/test.csv"))
+      gz.close
+    end
+    Zlib::GzipReader.open("test/test2.csv.gz") { |gz| OSV.for_each(gz) { |row| actual << row } }
+    assert_equal expected, actual
+  ensure
+    FileUtils.rm_f("test/test2.csv.gz")
+  end
 end
