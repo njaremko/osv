@@ -8,7 +8,7 @@ use flate2::read::GzDecoder;
 use magnus::{rb_sys::AsRawValue, value::ReprValue, Error as MagnusError, RString, Ruby, Value};
 use std::{
     fs::File,
-    io::{self, Read},
+    io::{self, BufReader, Read},
     marker::PhantomData,
     os::fd::FromRawFd,
     thread,
@@ -128,7 +128,7 @@ impl<'a, T: RecordParser + Send + 'static> RecordReaderBuilder<'a, T> {
         }
 
         let file = unsafe { File::from_raw_fd(fd) };
-        Ok(Box::new(file))
+        Ok(Box::new(BufReader::new(file)))
     }
 
     fn handle_file_path(&self) -> Result<Box<dyn Read + Send + 'static>, ReaderError> {
@@ -136,9 +136,9 @@ impl<'a, T: RecordParser + Send + 'static> RecordReaderBuilder<'a, T> {
         let file = File::open(&path)?;
 
         Ok(if path.ends_with(".gz") {
-            Box::new(GzDecoder::new(file))
+            Box::new(GzDecoder::new(BufReader::new(file)))
         } else {
-            Box::new(file)
+            Box::new(BufReader::new(file))
         })
     }
 
@@ -257,30 +257,55 @@ impl<'a, T: RecordParser + Send + 'static> RecordReaderBuilder<'a, T> {
 
 struct RubyReader {
     inner: Value,
+    buffer: Option<Vec<u8>>,
+    offset: usize,
 }
 
 impl RubyReader {
     fn new(inner: Value) -> Self {
-        Self { inner }
+        Self {
+            inner,
+            buffer: None,
+            offset: 0,
+        }
     }
 }
 
+// Read the entire inner into a vector and then read future reads from that vector with offset
 impl Read for RubyReader {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        let result = self.inner.funcall::<_, _, Value>("read", (buf.len(),));
+        // If we have an existing buffer, read from it
+        if let Some(buffer) = self.buffer.as_ref() {
+            let remaining = buffer.len() - self.offset;
+            let copy_size = remaining.min(buf.len());
+            buf[..copy_size].copy_from_slice(&buffer[self.offset..self.offset + copy_size]);
+            self.offset += copy_size;
+            return Ok(copy_size);
+        }
+
+        // No buffer yet - read the entire content from Ruby
+        let result = self.inner.funcall::<_, _, Value>("read", ());
         match result {
             Ok(data) => {
                 if data.is_nil() {
-                    return Ok(0);
+                    return Ok(0); // EOF
                 }
 
                 let string = RString::from_value(data).ok_or_else(|| {
                     io::Error::new(io::ErrorKind::Other, "Failed to convert to RString")
                 })?;
                 let bytes = unsafe { string.as_slice() };
-                let len = bytes.len().min(buf.len());
-                buf[..len].copy_from_slice(&bytes[..len]);
-                Ok(len)
+
+                // Store the entire content in the buffer
+                self.buffer = Some(bytes.to_vec());
+                self.offset = 0;
+
+                // Read initial chunk
+                let copy_size = bytes.len().min(buf.len());
+                buf[..copy_size].copy_from_slice(&bytes[..copy_size]);
+                self.offset = copy_size;
+
+                Ok(copy_size)
             }
             Err(e) => Err(io::Error::new(io::ErrorKind::Other, e.to_string())),
         }
