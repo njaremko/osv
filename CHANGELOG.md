@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.11
+
+- Set license to MIT in gemspec
+
 ## 0.3.10
 
 - Added `trim` option to `for_each` that allows trimming of fields and headers
