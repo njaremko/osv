@@ -409,4 +409,103 @@ class BasicTest < Minitest::Test
   ensure
     FileUtils.rm_f("test/test2.csv.gz")
   end
+
+  def test_parse_csv_with_quoted_commas
+    csv_content = <<~CSV
+      id,name,description
+      1,"Smith, John","Manager, Sales"
+      2,"Doe, Jane","Director, HR"
+    CSV
+
+    expected = [
+      { "id" => "1", "name" => "Smith, John", "description" => "Manager, Sales" },
+      { "id" => "2", "name" => "Doe, Jane", "description" => "Director, HR" }
+    ]
+
+    actual = []
+    StringIO.new(csv_content).tap { |io| OSV.for_each(io) { |row| actual << row } }
+    assert_equal expected, actual
+  end
+
+  def test_parse_csv_with_escaped_quotes
+    csv_content = <<~CSV
+      id,name,quote
+      1,"John","He said ""Hello World"""
+      2,"Jane","She replied ""Hi there!"""
+    CSV
+
+    expected = [
+      { "id" => "1", "name" => "John", "quote" => 'He said "Hello World"' },
+      { "id" => "2", "name" => "Jane", "quote" => 'She replied "Hi there!"' }
+    ]
+
+    actual = []
+    StringIO.new(csv_content).tap { |io| OSV.for_each(io) { |row| actual << row } }
+    assert_equal expected, actual
+  end
+
+  def test_parse_csv_with_newlines_in_quotes
+    csv_content = <<~CSV
+      id,name,address
+      1,"John Smith","123 Main St.
+      Apt 4B
+      New York, NY"
+      2,"Jane Doe","456 Park Ave.
+      Suite 789"
+    CSV
+
+    expected = [
+      { "id" => "1", "name" => "John Smith", "address" => "123 Main St.\nApt 4B\nNew York, NY" },
+      { "id" => "2", "name" => "Jane Doe", "address" => "456 Park Ave.\nSuite 789" }
+    ]
+
+    actual = []
+    StringIO.new(csv_content).tap { |io| OSV.for_each(io) { |row| actual << row } }
+    assert_equal expected, actual
+  end
+
+  def test_parse_csv_with_unicode
+    csv_content = <<~CSV
+      id,name,description
+      1,"José García","Señor developer 👨‍💻"
+      2,"Zoë Smith","⭐ Project lead"
+    CSV
+
+    expected = [
+      { "id" => "1", "name" => "José García", "description" => "Señor developer 👨‍💻" },
+      { "id" => "2", "name" => "Zoë Smith", "description" => "⭐ Project lead" }
+    ]
+
+    actual = []
+    StringIO.new(csv_content).tap { |io| OSV.for_each(io) { |row| actual << row } }
+    assert_equal expected, actual
+  end
+
+  def test_parse_csv_with_bom
+    csv_content = "\xEF\xBB\xBF" + <<~CSV
+      id,name,age
+      1,John,25
+      2,Jane,30
+    CSV
+
+    expected = [{ "id" => "1", "name" => "John", "age" => "25" }, { "id" => "2", "name" => "Jane", "age" => "30" }]
+
+    actual = []
+    StringIO.new(csv_content).tap { |io| OSV.for_each(io) { |row| actual << row } }
+    assert_equal expected, actual
+  end
+
+  def test_parse_csv_with_mixed_line_endings
+    csv_content = "id,name,age\r\n1,John,25\n2,Jane,30\r\n3,Jim,35"
+
+    expected = [
+      { "id" => "1", "name" => "John", "age" => "25" },
+      { "id" => "2", "name" => "Jane", "age" => "30" },
+      { "id" => "3", "name" => "Jim", "age" => "35" }
+    ]
+
+    actual = []
+    StringIO.new(csv_content).tap { |io| OSV.for_each(io) { |row| actual << row } }
+    assert_equal expected, actual
+  end
 end
