@@ -14,29 +14,32 @@ pub trait RecordParser {
 impl RecordParser for HashMap<&'static str, Option<String>> {
     type Output = Self;
 
-    #[inline]
+    #[inline(always)]
     fn parse(
         headers: &[&'static str],
         record: &csv::StringRecord,
         null_string: Option<&str>,
         flexible_default: Option<&str>,
     ) -> Self::Output {
-        let mut map = HashMap::with_capacity(headers.len());
-        headers.iter().enumerate().for_each(|(i, &header)| {
-            let value = record.get(i).map_or_else(
-                || flexible_default.map(ToString::to_string),
-                |field| {
-                    if null_string == Some(field) {
+        let capacity = headers.len();
+        let mut map = HashMap::with_capacity(capacity);
+        let default = flexible_default.map(String::from);
+
+        while let Some(&header) = headers.iter().next() {
+            let value = match record.iter().next() {
+                Some(field) => {
+                    if Some(field) == null_string {
                         None
                     } else if field.is_empty() {
                         Some(String::new())
                     } else {
-                        Some(field.to_string())
+                        Some(field.into())
                     }
-                },
-            );
+                }
+                None => default.clone(),
+            };
             map.insert(header, value);
-        });
+        }
         map
     }
 }
@@ -44,7 +47,7 @@ impl RecordParser for HashMap<&'static str, Option<String>> {
 impl RecordParser for Vec<Option<String>> {
     type Output = Self;
 
-    #[inline]
+    #[inline(always)]
     fn parse(
         headers: &[&'static str],
         record: &csv::StringRecord,
@@ -54,20 +57,23 @@ impl RecordParser for Vec<Option<String>> {
         let target_len = headers.len();
         let mut vec = Vec::with_capacity(target_len);
 
-        vec.extend(record.iter().map(|field| {
-            if null_string == Some(field) {
+        for field in record.iter() {
+            let value = if Some(field) == null_string {
                 None
             } else if field.is_empty() {
                 Some(String::new())
             } else {
-                Some(field.to_string())
-            }
-        }));
-
-        if let Some(default) = flexible_default {
-            let default = default.to_string();
-            vec.resize_with(target_len, || Some(default.clone()));
+                Some(field.into())
+            };
+            vec.push(value);
         }
+
+        if vec.len() < target_len {
+            if let Some(default) = flexible_default {
+                vec.resize_with(target_len, || Some(default.to_string()));
+            }
+        }
+
         vec
     }
 }

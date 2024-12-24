@@ -21,12 +21,10 @@ impl<T: RecordParser> RecordReader<T> {
         })?;
 
         Ok(if has_headers {
-            // Pre-allocate the vector with exact capacity
             let mut headers = Vec::with_capacity(first_row.len());
             headers.extend(first_row.iter().map(String::from));
             headers
         } else {
-            // Pre-allocate the vector with exact capacity
             let mut headers = Vec::with_capacity(first_row.len());
             headers.extend((0..first_row.len()).map(|i| format!("c{i}")));
             headers

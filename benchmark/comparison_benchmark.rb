@@ -10,7 +10,7 @@ require "zlib"
 require "fileutils"
 
 # Generate a larger test file for more meaningful benchmarks
-def generate_test_data(rows = 1_000_000)
+def generate_test_data(rows = 100_000)
   headers = %w[id name age email city country]
   StringIO.new.tap do |io|
     io.puts headers.join(",")
@@ -41,7 +41,9 @@ begin
 
     # x.report("CSV - Hash output") { File.open("benchmark/test.csv") { |f| CSV.new(f, headers: true).map(&:to_h) } }
 
-    x.report("OSV - Array output") { File.open("benchmark/test.csv") { |f| OSV.for_each(f, result_type: :array).to_a } }
+    x.report("OSV - Array output") do
+      File.open("benchmark/test.csv") { |f| OSV.for_each(f, has_headers: false, result_type: :array).to_a }
+    end
 
     # x.report("CSV - Array output") { File.open("benchmark/test.csv") { |f| CSV.new(f).read } }
 

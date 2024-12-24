@@ -8,12 +8,16 @@ use flate2::read::GzDecoder;
 use magnus::{rb_sys::AsRawValue, value::ReprValue, Error as MagnusError, RString, Ruby, Value};
 use std::{
     fs::File,
-    io::{self, Read},
+    io::{self, BufReader, Read},
     marker::PhantomData,
     os::fd::FromRawFd,
     thread,
 };
 use thiserror::Error;
+
+const BATCH_SIZE: usize = 16384;
+const READ_BUFFER_SIZE: usize = 16384;
+const ROW_BUFFER_SIZE: usize = 16384;
 
 #[derive(Error, Debug)]
 pub enum ReaderError {
@@ -68,7 +72,7 @@ impl<'a, T: RecordParser + Send + 'static> RecordReaderBuilder<'a, T> {
             delimiter: b',',
             quote_char: b'"',
             null_string: None,
-            buffer: 1000,
+            buffer: BATCH_SIZE,
             flexible: false,
             flexible_default: None,
             _phantom: PhantomData,
@@ -128,7 +132,7 @@ impl<'a, T: RecordParser + Send + 'static> RecordReaderBuilder<'a, T> {
         }
 
         let file = unsafe { File::from_raw_fd(fd) };
-        Ok(Box::new(file))
+        Ok(Box::new(BufReader::with_capacity(READ_BUFFER_SIZE, file)))
     }
 
     fn handle_file_path(&self) -> Result<Box<dyn Read + Send + 'static>, ReaderError> {
@@ -136,9 +140,12 @@ impl<'a, T: RecordParser + Send + 'static> RecordReaderBuilder<'a, T> {
         let file = File::open(&path)?;
 
         Ok(if path.ends_with(".gz") {
-            Box::new(GzDecoder::new(file))
+            Box::new(GzDecoder::new(BufReader::with_capacity(
+                READ_BUFFER_SIZE,
+                file,
+            )))
         } else {
-            Box::new(file)
+            Box::new(BufReader::with_capacity(READ_BUFFER_SIZE, file))
         })
     }
 
@@ -188,11 +195,13 @@ impl<'a, T: RecordParser + Send + 'static> RecordReaderBuilder<'a, T> {
         readable: Box<dyn Read + Send + 'static>,
     ) -> Result<RecordReader<T>, ReaderError> {
         let flexible = self.flexible || self.flexible_default.is_some();
+
         let mut reader = csv::ReaderBuilder::new()
             .has_headers(self.has_headers)
             .delimiter(self.delimiter)
             .quote(self.quote_char)
             .flexible(flexible)
+            .buffer_capacity(READ_BUFFER_SIZE)
             .from_reader(readable);
 
         let headers = RecordReader::<T>::get_headers(self.ruby, &mut reader, self.has_headers)?;
@@ -201,24 +210,42 @@ impl<'a, T: RecordParser + Send + 'static> RecordReaderBuilder<'a, T> {
 
         let (sender, receiver) = kanal::bounded(self.buffer);
         let null_string = self.null_string.clone();
-
         let flexible_default = self.flexible_default.clone();
-        let handle = thread::spawn(move || {
-            let mut record = csv::StringRecord::new();
-            while let Ok(true) = reader.read_record(&mut record) {
-                let row = T::parse(
-                    &static_headers,
-                    &record,
-                    null_string.as_deref(),
-                    flexible_default.as_deref(),
-                );
-                if sender.send(row).is_err() {
-                    break;
+
+        let handle = thread::Builder::new()
+            .name("csv_parser".to_string())
+            .stack_size(2 * 1024 * 1024)
+            .spawn(move || {
+                let mut batch = Vec::with_capacity(BATCH_SIZE);
+                let mut record = csv::StringRecord::with_capacity(ROW_BUFFER_SIZE, headers.len());
+
+                while let Ok(true) = reader.read_record(&mut record) {
+                    let row = T::parse(
+                        &static_headers,
+                        &record,
+                        null_string.as_deref(),
+                        flexible_default.as_deref(),
+                    );
+
+                    batch.push(row);
+
+                    if batch.len() >= BATCH_SIZE {
+                        for row in batch.drain(..) {
+                            if sender.send(row).is_err() {
+                                return;
+                            }
+                        }
+                    }
                 }
-            }
-            let file_to_forget = reader.into_inner();
-            std::mem::forget(file_to_forget);
-        });
+
+                for row in batch.drain(..) {
+                    let _ = sender.send(row);
+                }
+
+                let file_to_forget = reader.into_inner();
+                std::mem::forget(file_to_forget);
+            })
+            .map_err(|e| ReaderError::Ruby(e.to_string()))?;
 
         Ok(RecordReader {
             reader: ReadImpl::MultiThreaded {
@@ -250,6 +277,7 @@ impl<'a, T: RecordParser + Send + 'static> RecordReaderBuilder<'a, T> {
                 headers: static_headers,
                 null_string: self.null_string,
                 flexible_default: self.flexible_default,
+                record_buffer: csv::StringRecord::new(),
             },
         })
     }
