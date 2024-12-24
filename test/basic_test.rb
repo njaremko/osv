@@ -508,4 +508,98 @@ class BasicTest < Minitest::Test
     StringIO.new(csv_content).tap { |io| OSV.for_each(io) { |row| actual << row } }
     assert_equal expected, actual
   end
+
+  def test_parse_csv_with_empty_lines
+    csv_content = <<~CSV
+      id,name,age
+
+      1,John,25
+
+      2,Jane,30
+
+      3,Jim,35
+
+    CSV
+
+    expected = [
+      { "id" => "1", "name" => "John", "age" => "25" },
+      { "id" => "2", "name" => "Jane", "age" => "30" },
+      { "id" => "3", "name" => "Jim", "age" => "35" }
+    ]
+
+    actual = []
+    StringIO.new(csv_content).tap { |io| OSV.for_each(io) { |row| actual << row } }
+    assert_equal expected, actual
+  end
+
+  def test_parse_csv_with_long_line
+    long_text = "x" * 1_000_000
+    csv_content = <<~CSV
+      id,name,description
+      1,John,#{long_text}
+      2,Jane,Short description
+    CSV
+
+    expected = [
+      { "id" => "1", "name" => "John", "description" => long_text },
+      { "id" => "2", "name" => "Jane", "description" => "Short description" }
+    ]
+
+    actual = []
+    StringIO.new(csv_content).tap { |io| OSV.for_each(io) { |row| actual << row } }
+    assert_equal expected, actual
+  end
+
+  def test_parse_csv_with_whitespace_and_quotes
+    csv_content = <<~CSV
+      id,name,description
+      1,  John  ,  unquoted spaces
+      2," Jane ",  "  quoted spaces  "
+      3,"Jim","  mixed  "
+    CSV
+
+    expected = [
+      { "id" => "1", "description" => "  unquoted spaces", "name" => "  John  " },
+      { "id" => "2", "description" => "  \"  quoted spaces  \"", "name" => " Jane " },
+      { "id" => "3", "description" => "  mixed  ", "name" => "Jim" }
+    ]
+    actual = []
+    StringIO.new(csv_content).tap { |io| OSV.for_each(io) { |row| actual << row } }
+    assert_equal expected, actual
+  end
+
+  def test_parse_csv_with_empty_quoted_vs_unquoted
+    csv_content = <<~CSV
+      id,quoted,unquoted
+      1,"",
+      2,," "
+      3,,
+      4,"  ",
+    CSV
+
+    expected = [
+      { "id" => "1", "quoted" => "", "unquoted" => "" },
+      { "id" => "2", "quoted" => "", "unquoted" => " " },
+      { "id" => "3", "quoted" => "", "unquoted" => "" },
+      { "id" => "4", "quoted" => "  ", "unquoted" => "" }
+    ]
+
+    actual = []
+    StringIO.new(csv_content).tap { |io| OSV.for_each(io) { |row| actual << row } }
+    assert_equal expected, actual
+  end
+
+  def test_parse_csv_with_duplicate_headers
+    csv_content = <<~CSV
+      id,name,id,name
+      1,John,A,Johnny
+      2,Jane,B,Janet
+    CSV
+
+    expected = [%w[1 John A Johnny], %w[2 Jane B Janet]]
+
+    actual = []
+    StringIO.new(csv_content).tap { |io| OSV.for_each(io, result_type: :array) { |row| actual << row } }
+    assert_equal expected, actual
+  end
 end
