@@ -20,3 +20,9 @@ Rake::TestTask.new do |t|
   t.libs << "lib"
   t.libs << "test"
 end
+
+task :release do
+  sh "bundle exec rake test"
+  sh "gem build osv.gemspec"
+  sh "gem push osv-#{OSV::VERSION}.gem"
+end

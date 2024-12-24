@@ -23,8 +23,5 @@ jobs:
           ruby-version: 3.2
           bundler-cache: true # runs 'bundle install' and caches installed gems automatically
 
-      - name: Run tests
-        run: bundle exec rake
-
-      # Release
+      # Run tests and release
       - uses: rubygems/release-gem@v1
