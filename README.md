@@ -74,18 +74,20 @@ OSV.for_each(data) { |row| puts row["name"] }
 ```ruby
 OSV.for_each("data.csv",
   # Input formatting
-  has_headers: true,      # First row contains headers (default: true)
+  has_headers: true,     # First row contains headers (default: true)
   col_sep: ",",          # Column separator (default: ",")
   quote_char: '"',       # Quote character (default: '"')
 
   # Output formatting
   result_type: :hash,    # :hash or :array (hash is default)
-  nil_string: "",        # String to interpret as nil
+  nil_string: nil,       # String to interpret as nil when parsing (default: nil)
 
   # Parsing behavior
   flexible: false,       # Allow varying number of fields (default: false)
-  flexible_default: nil, # Default value for missing fields. Implicitly enables flexible mode if set.
-  trim: :all            # Trim whitespace: :all, :headers, or :fields
+  flexible_default: nil, # Default value for missing fields. If unset, we ignore missing fields.
+                         # Implicitly enables flexible mode if set.
+  trim: :all,            # Whether to trim whitespace. Options are :all, :headers, or :fields (default: nil)
+  buffer_size: 1024,     # Number of rows to buffer in memory (default: 1024)
 )
 ```
 
@@ -97,7 +99,7 @@ OSV.for_each("data.csv",
 - `nil_string`: String that should be interpreted as nil
   - by default, empty strings are interpreted as empty strings
   - if you want to interpret empty strings as nil, set this to an empty string
-- `buffer_size`: Integer specifying the read buffer size
+- `buffer_size`: Integer specifying the number of rows to buffer in memory (default: 1024)
 - `result_type`: String specifying the output format ("hash" or "array" or :hash or :array)
 - `flexible`: Boolean specifying if the parser should be flexible (default: false)
 - `flexible_default`: String specifying the default value for missing fields. Implicitly enables flexible mode if set. (default: `nil`)
