@@ -8,16 +8,12 @@ Gem::Specification.new do |spec|
 
   spec.summary = "CSV parser for Ruby"
   spec.description = <<-EOF
-OSV is a high-performance CSV parser for Ruby, implemented in Rust. It wraps BurntSushi's csv-rs crate to provide fast CSV parsing with support for both hash-based and array-based row formats.
-
-Features include:
-- Flexible input sources (file paths, gzipped files, IO objects, strings)
-- Configurable parsing options (headers, separators, quote chars)
-- Support for both hash and array output formats
-- Whitespace trimming options
-- Strict or flexible parsing modes
-- Significantly faster than Ruby's standard CSV library
-EOF
+    OSV is a high-performance CSV parser for Ruby, implemented in Rust.
+    It wraps BurntSushi's csv-rs crate to provide fast CSV parsing with support for both hash-based and array-based row formats.
+    Features include: Flexible input sources (file paths, gzipped files, IO objects, strings),
+    configurable parsing options (headers, separators, quote chars), support for both hash and array output formats,
+    whitespace trimming options, strict or flexible parsing modes, and is significantly faster than Ruby's standard CSV library.
+  EOF
   spec.homepage = "https://github.com/njaremko/osv"
   spec.license = "MIT"
   spec.required_ruby_version = ">= 3.1.0"
