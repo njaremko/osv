@@ -22,9 +22,9 @@ impl RecordParser for HashMap<&'static str, Option<String>> {
         flexible_default: Option<&str>,
     ) -> Self::Output {
         let mut map = HashMap::with_capacity(headers.len());
-        headers.iter().enumerate().for_each(|(i, header)| {
+        headers.iter().enumerate().for_each(|(i, &header)| {
             let value = record.get(i).map_or_else(
-                || flexible_default.map(|s| s.to_string()),
+                || flexible_default.map(ToString::to_string),
                 |field| {
                     if null_string == Some(field) {
                         None
@@ -35,7 +35,7 @@ impl RecordParser for HashMap<&'static str, Option<String>> {
                     }
                 },
             );
-            map.insert(*header, value);
+            map.insert(header, value);
         });
         map
     }
@@ -53,6 +53,7 @@ impl RecordParser for Vec<Option<String>> {
     ) -> Self::Output {
         let target_len = headers.len();
         let mut vec = Vec::with_capacity(target_len);
+
         vec.extend(record.iter().map(|field| {
             if null_string == Some(field) {
                 None
@@ -63,11 +64,9 @@ impl RecordParser for Vec<Option<String>> {
             }
         }));
 
-        // Fill remaining slots with flexible_default if needed
         if let Some(default) = flexible_default {
-            while vec.len() < target_len {
-                vec.push(Some(default.to_string()));
-            }
+            let default = default.to_string();
+            vec.resize_with(target_len, || Some(default.clone()));
         }
         vec
     }
