@@ -10,7 +10,7 @@ pub struct CsvArgs {
     pub has_headers: bool,
     pub delimiter: u8,
     pub quote_char: u8,
-    pub null_string: String,
+    pub null_string: Option<String>,
     pub buffer_size: usize,
     pub result_type: String,
 }
@@ -73,7 +73,7 @@ pub fn parse_csv_args(ruby: &Ruby, args: &[Value]) -> Result<CsvArgs, Error> {
             )
         })?;
 
-    let null_string = kwargs.optional.3.unwrap_or_else(|| "".to_string());
+    let null_string = kwargs.optional.3;
 
     let buffer_size = kwargs.optional.4.unwrap_or(1000);
 

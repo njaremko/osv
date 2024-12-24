@@ -65,19 +65,12 @@ Both methods support the following options:
 
 - `has_headers`: Boolean indicating if the first row contains headers (default: true)
 - `col_sep`: String specifying the field separator (default: ",")
-
-```ruby
-# Reading TSV files
-OSV.for_each("path/to/file.tsv", col_sep: "\t") do |row|
-  puts row["name"]
-end
-
-# Reading without headers
-OSV.for_each("path/to/file.csv", has_headers: false) do |row|
-  # Headers will be automatically generated as "c0", "c1", etc.
-  puts row["c0"]
-end
-```
+- `quote_char`: String specifying the quote character (default: "\"")
+- `nil_string`: String that should be interpreted as nil
+  - by default, empty strings are interpreted as empty strings
+  - if you want to interpret empty strings as nil, set this to an empty string
+- `buffer_size`: Integer specifying the read buffer size
+- `result_type`: String specifying the output format ("hash" or "array")
 
 ### Input Sources
 

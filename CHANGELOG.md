@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.5
+
+- `nil_string` no longer defaults to an empty string. It now defaults to `nil`. Which means that empty strings are interpreted as empty strings.
+
 ## 0.3.4
 
 - Added support for handling non-file backed IO objects in single threaded mode

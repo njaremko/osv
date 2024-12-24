@@ -52,7 +52,7 @@ pub struct RecordReaderBuilder<'a, T: RecordParser + Send + 'static> {
     has_headers: bool,
     delimiter: u8,
     quote_char: u8,
-    null_string: String,
+    null_string: Option<String>,
     buffer: usize,
     _phantom: PhantomData<T>,
 }
@@ -65,7 +65,7 @@ impl<'a, T: RecordParser + Send + 'static> RecordReaderBuilder<'a, T> {
             has_headers: true,
             delimiter: b',',
             quote_char: b'"',
-            null_string: String::new(),
+            null_string: None,
             buffer: 1000,
             _phantom: PhantomData,
         }
@@ -86,7 +86,7 @@ impl<'a, T: RecordParser + Send + 'static> RecordReaderBuilder<'a, T> {
         self
     }
 
-    pub fn null_string(mut self, null_string: String) -> Self {
+    pub fn null_string(mut self, null_string: Option<String>) -> Self {
         self.null_string = null_string;
         self
     }
@@ -189,7 +189,7 @@ impl<'a, T: RecordParser + Send + 'static> RecordReaderBuilder<'a, T> {
         let handle = thread::spawn(move || {
             let mut record = csv::StringRecord::new();
             while let Ok(true) = reader.read_record(&mut record) {
-                let row = T::parse(&static_headers, &record, &null_string);
+                let row = T::parse(&static_headers, &record, null_string.as_deref());
                 if sender.send(row).is_err() {
                     break;
                 }

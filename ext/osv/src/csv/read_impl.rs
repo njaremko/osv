@@ -5,7 +5,7 @@ pub enum ReadImpl<T: RecordParser> {
     SingleThreaded {
         reader: csv::Reader<Box<dyn Read>>,
         headers: Vec<&'static str>,
-        null_string: String,
+        null_string: Option<String>,
     },
     MultiThreaded {
         headers: Vec<&'static str>,
@@ -36,7 +36,7 @@ impl<T: RecordParser> ReadImpl<T> {
             } => {
                 let mut record = csv::StringRecord::new();
                 match reader.read_record(&mut record) {
-                    Ok(true) => Some(T::parse(headers, &record, null_string)),
+                    Ok(true) => Some(T::parse(headers, &record, null_string.as_deref())),
                     _ => None,
                 }
             }

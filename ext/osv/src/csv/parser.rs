@@ -6,7 +6,7 @@ pub trait RecordParser {
     fn parse(
         headers: &[&'static str],
         record: &csv::StringRecord,
-        null_string: &str,
+        null_string: Option<&str>,
     ) -> Self::Output;
 }
 
@@ -17,7 +17,7 @@ impl RecordParser for HashMap<&'static str, Option<String>> {
     fn parse(
         headers: &[&'static str],
         record: &csv::StringRecord,
-        null_string: &str,
+        null_string: Option<&str>,
     ) -> Self::Output {
         let mut map = HashMap::with_capacity(headers.len());
         headers
@@ -26,7 +26,7 @@ impl RecordParser for HashMap<&'static str, Option<String>> {
             .for_each(|(header, field)| {
                 map.insert(
                     *header,
-                    if field == null_string {
+                    if null_string == Some(field) {
                         None
                     } else {
                         // Avoid allocating for empty strings
@@ -49,11 +49,11 @@ impl RecordParser for Vec<Option<String>> {
     fn parse(
         _headers: &[&'static str],
         record: &csv::StringRecord,
-        null_string: &str,
+        null_string: Option<&str>,
     ) -> Self::Output {
         let mut vec = Vec::with_capacity(record.len());
         vec.extend(record.iter().map(|field| {
-            if field == null_string {
+            if null_string == Some(field) {
                 None
             } else {
                 // Avoid allocating for empty strings

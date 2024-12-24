@@ -71,7 +71,7 @@ struct EnumeratorArgs {
     has_headers: bool,
     delimiter: u8,
     quote_char: u8,
-    null_string: String,
+    null_string: Option<String>,
     buffer_size: usize,
     result_type: String,
 }
