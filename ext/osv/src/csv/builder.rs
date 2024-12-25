@@ -121,9 +121,17 @@ impl<'a, T: RecordParser + Send + 'static> RecordReaderBuilder<'a, T> {
     }
 
     fn handle_string_io(&self) -> Result<Box<dyn Read + Send + 'static>, ReaderError> {
-        let string: RString = self.to_read.funcall("string", ())?;
-        let content = string.to_string()?;
-        Ok(Box::new(std::io::Cursor::new(content)))
+        let rstring: Value = self.to_read.funcall("string", ())?;
+        let raw_value = rstring.as_raw();
+
+        let string = unsafe {
+            let ptr = rb_sys::RSTRING_PTR(raw_value);
+            let len = rb_sys::RSTRING_LEN(raw_value);
+
+            std::slice::from_raw_parts(ptr as *const u8, len as usize)
+        };
+
+        Ok(Box::new(std::io::Cursor::new(string)))
     }
 
     fn handle_file_descriptor(&self) -> Result<Box<dyn Read + Send + 'static>, ReaderError> {

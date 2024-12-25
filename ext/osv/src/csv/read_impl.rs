@@ -1,7 +1,7 @@
 use super::{header_cache::StringCache, parser::RecordParser};
 use std::{io::Read, thread};
 
-pub(crate) const READ_BUFFER_SIZE: usize = 8192;
+pub(crate) const READ_BUFFER_SIZE: usize = 16384;
 
 pub enum ReadImpl<T: RecordParser> {
     SingleThreaded {

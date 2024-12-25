@@ -37,6 +37,23 @@ begin
   Benchmark.ips do |x|
     x.config(time: 10, warmup: 5)
 
+    x.report("OSV - StringIO") do
+      io = StringIO.new(test_data)
+      result = []
+      OSV.for_each(io) { |row| result << row }
+      result
+      io.close
+    end
+
+    x.report("FastCSV - StringIO") do
+      result = []
+      io = StringIO.new(test_data)
+      FastCSV.raw_parse(io) { |row| result << row }
+      io.close
+
+      result
+    end
+
     x.report("OSV - Hash output") do
       result = []
       File.open("benchmark/test.csv") { |f| OSV.for_each(f) { |row| result << row } }
@@ -53,14 +70,6 @@ begin
       result = []
       OSV.for_each("benchmark/test.csv", result_type: :array) { |row| result << row }
       result
-    end
-
-    x.report("OSV - StringIO") do
-      io = StringIO.new(test_data)
-      result = []
-      OSV.for_each(io) { |row| result << row }
-      result
-      io.close
     end
 
     x.report("OSV - Gzipped") do
@@ -89,30 +98,21 @@ begin
       result
     end
 
-    x.report("FastCSV - StringIO") do
-      result = []
+    x.report("CSV - Gzipped") do
+      Zlib::GzipReader.open("benchmark/test.csv.gz") { |gz| CSV.new(gz, headers: true).map(&:to_h) }
+    end
+
+    x.report("CSV - Hash output") { File.open("benchmark/test.csv") { |f| CSV.new(f, headers: true).map(&:to_h) } }
+
+    x.report("CSV - StringIO") do
       io = StringIO.new(test_data)
-      FastCSV.raw_parse(io) { |row| result << row }
+      result = CSV.new(io, headers: true).map(&:to_h)
       io.close
 
       result
     end
 
-    # x.report("CSV - Gzipped") do
-    #   Zlib::GzipReader.open("benchmark/test.csv.gz") { |gz| CSV.new(gz, headers: true).map(&:to_h) }
-    # end
-
-    # x.report("CSV - Hash output") { File.open("benchmark/test.csv") { |f| CSV.new(f, headers: true).map(&:to_h) } }
-
-    # x.report("CSV - StringIO") do
-    #   io = StringIO.new(test_data)
-    #   result = CSV.new(io, headers: true).map(&:to_h)
-    #   io.close
-
-    #   result
-    # end
-
-    # x.report("CSV - Array output") { File.open("benchmark/test.csv") { |f| CSV.new(f).read } }
+    x.report("CSV - Array output") { File.open("benchmark/test.csv") { |f| CSV.new(f).read } }
 
     x.compare!
   end
