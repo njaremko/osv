@@ -114,7 +114,7 @@ When `has_headers` is false, hash keys will be generated as `"c0"`, `"c1"`, etc.
 
 ## Performance
 
-This library is faster than the standard Ruby CSV library, and is comparable to the fastest CSV parser gems I've used.
+This library is faster than the standard Ruby CSV library. It's also faster than any other CSV gem I've been able to find.
 
 Here's some unscientific benchmarks. You can find the code in the [benchmark/comparison_benchmark.rb](benchmark/comparison_benchmark.rb) file.
 
