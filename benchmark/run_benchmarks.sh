@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+export RB_SYS_CARGO_PROFILE=release
+
 echo "🧹 Cleaning previous build..."
 cargo clean
 

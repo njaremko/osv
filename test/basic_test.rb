@@ -133,6 +133,26 @@ class BasicTest < Minitest::Test
     end
   end
 
+  def test_parse_csv_with_empty_field_as_nil_string
+    Tempfile.create(%w[test .csv]) do |tempfile|
+      # Copy existing content and add a line with empty field
+      content = File.read("test/test.csv")
+      content += "4,,40\n"
+      tempfile.write(content)
+      tempfile.close
+
+      expected = [
+        { "id" => "1", "age" => "25", "name" => "John" },
+        { "name" => "Jane", "id" => "2", "age" => "30" },
+        { "name" => "Jim", "age" => "35", "id" => "3" },
+        { "id" => "4", "name" => nil, "age" => "40" }
+      ]
+      actual = []
+      OSV.for_each(tempfile.path, nil_string: "") { |row| actual << row }
+      assert_equal expected, actual
+    end
+  end
+
   def test_parse_csv_with_missing_field_default_strict
     Tempfile.create(%w[test .csv]) do |tempfile|
       content = File.read("test/test.csv")

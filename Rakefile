@@ -12,12 +12,8 @@ RbSys::ExtensionTask.new("osv", GEMSPEC) do |ext|
   ext.ext_dir = "ext/osv"
 end
 
-task :dev do
-  ENV["RB_SYS_CARGO_PROFILE"] = "dev"
-end
-
 Rake::TestTask.new do |t|
-  t.deps << :dev << :compile
+  t.deps << :compile
   t.test_files = FileList[File.expand_path("test/*_test.rb", __dir__)]
   t.libs << "lib"
   t.libs << "test"
