@@ -3,12 +3,13 @@ use std::{io::Read, thread};
 
 pub(crate) const READ_BUFFER_SIZE: usize = 16384;
 
-pub enum ReadImpl<T: RecordParser> {
+pub enum ReadImpl<'a, T: RecordParser> {
     SingleThreaded {
-        reader: csv::Reader<Box<dyn Read>>,
+        reader: csv::Reader<Box<dyn Read + 'a>>,
         headers: Vec<&'static str>,
         null_string: Option<String>,
         flexible_default: Option<String>,
+        string_record: csv::StringRecord,
     },
     MultiThreaded {
         headers: Vec<&'static str>,
@@ -17,9 +18,11 @@ pub enum ReadImpl<T: RecordParser> {
     },
 }
 
-impl<T: RecordParser> ReadImpl<T> {
+impl<'a, T: RecordParser> Iterator for ReadImpl<'a, T> {
+    type Item = T::Output;
+
     #[inline]
-    pub fn next(&mut self) -> Option<T::Output> {
+    fn next(&mut self) -> Option<T::Output> {
         match self {
             Self::MultiThreaded {
                 receiver, handle, ..
@@ -37,21 +40,22 @@ impl<T: RecordParser> ReadImpl<T> {
                 headers,
                 null_string,
                 flexible_default,
-            } => {
-                let mut record = csv::StringRecord::with_capacity(READ_BUFFER_SIZE, headers.len());
-                match reader.read_record(&mut record) {
-                    Ok(true) => Some(T::parse(
-                        headers,
-                        &record,
-                        null_string.as_deref(),
-                        flexible_default.as_deref(),
-                    )),
-                    _ => None,
-                }
-            }
+                ref mut string_record,
+            } => match reader.read_record(string_record) {
+                Ok(true) => Some(T::parse(
+                    headers,
+                    &string_record,
+                    null_string.as_deref(),
+                    flexible_default.as_deref(),
+                )),
+                Ok(false) => None,
+                Err(_e) => None,
+            },
         }
     }
+}
 
+impl<'a, T: RecordParser> ReadImpl<'a, T> {
     #[inline]
     pub fn cleanup(&mut self) {
         match self {

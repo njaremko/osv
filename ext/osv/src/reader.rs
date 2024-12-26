@@ -7,10 +7,12 @@ use std::collections::HashMap;
 use xxhash_rust::xxh3::Xxh3Builder;
 
 pub fn parse_csv(
+    // ruby: &Ruby,
     rb_self: Value,
     args: &[Value],
 ) -> Result<Yield<Box<dyn Iterator<Item = CsvRecord<Xxh3Builder>>>>, Error> {
-    let ruby = unsafe { Ruby::get_unchecked() };
+    let original = unsafe { Ruby::get_unchecked() };
+    let ruby: &'static Ruby = Box::leak(Box::new(original));
 
     let CsvArgs {
         to_read,

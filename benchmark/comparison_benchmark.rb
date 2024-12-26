@@ -9,6 +9,8 @@ require "stringio"
 require "zlib"
 require "fileutils"
 
+RubyVM::YJIT.enable
+
 # Generate a larger test file for more meaningful benchmarks
 def generate_test_data(rows = 1_000_000)
   headers = %w[id name age email city country]
@@ -54,65 +56,66 @@ begin
       result
     end
 
-    x.report("OSV - Hash output") do
-      result = []
-      File.open("benchmark/test.csv") { |f| OSV.for_each(f) { |row| result << row } }
-      result
-    end
+    # x.report("OSV - Hash output") do
+    #   result = []
+    #   File.open("benchmark/test.csv") { |f| OSV.for_each(f) { |row| result << row } }
+    #   result
+    # end
 
-    x.report("OSV - Array output") do
-      result = []
-      File.open("benchmark/test.csv") { |f| OSV.for_each(f, result_type: :array) { |row| result << row } }
-      result
-    end
+    # x.report("OSV - Array output") do
+    #   result = []
+    #   File.open("benchmark/test.csv") { |f| OSV.for_each(f, result_type: :array) { |row| result << row } }
+    #   result
+    # end
 
-    x.report("OSV - Direct Open Array output") do
-      result = []
-      OSV.for_each("benchmark/test.csv", result_type: :array) { |row| result << row }
-      result
-    end
+    # x.report("OSV - Direct Open Array output") do
+    #   result = []
+    #   OSV.for_each("benchmark/test.csv", result_type: :array) { |row| result << row }
+    #   result
+    # end
 
-    x.report("OSV - Gzipped") do
-      result = []
-      Zlib::GzipReader.open("benchmark/test.csv.gz") do |gz|
-        OSV.for_each(gz, result_type: :array) { |row| result << row }
-      end
-      result
-    end
+    # x.report("OSV - Gzipped") do
+    #   result = []
+    #   Zlib::GzipReader.open("benchmark/test.csv.gz") do |gz|
+    #     OSV.for_each(gz, result_type: :array) { |row| result << row }
+    #   end
+    #   result
+    # end
 
-    x.report("OSV - Gzipped Direct") do
-      result = []
-      OSV.for_each("benchmark/test.csv.gz", result_type: :array) { |row| result << row }
-      result
-    end
+    # x.report("OSV - Gzipped Direct") do
+    #   result = []
+    #   OSV.for_each("benchmark/test.csv.gz", result_type: :array) { |row| result << row }
+    #   result
+    # end
 
-    x.report("FastCSV - Array output") do
-      result = []
-      File.open("benchmark/test.csv") { |f| FastCSV.raw_parse(f) { |row| result << row } }
-      result
-    end
+    # x.report("FastCSV - Array output") do
+    #   result = []
+    #   File.open("benchmark/test.csv") { |f| FastCSV.raw_parse(f) { |row| result << row } }
+    #   result
+    # end
 
-    x.report("FastCSV - Gzipped") do
-      result = []
-      Zlib::GzipReader.open("benchmark/test.csv.gz") { |gz| FastCSV.raw_parse(gz) { |row| result << row } }
-      result
-    end
+    # x.report("FastCSV - Gzipped") do
+    #   result = []
+    #   Zlib::GzipReader.open("benchmark/test.csv.gz") { |gz| FastCSV.raw_parse(gz) { |row| result << row } }
+    #   result
+    # end
 
-    x.report("CSV - Gzipped") do
-      Zlib::GzipReader.open("benchmark/test.csv.gz") { |gz| CSV.new(gz, headers: true).map(&:to_h) }
-    end
+    # x.report("CSV - Gzipped") do
+    #   Zlib::GzipReader.open("benchmark/test.csv.gz") { |gz| CSV.new(gz, headers: true).map(&:to_h) }
+    # end
 
-    x.report("CSV - Hash output") { File.open("benchmark/test.csv") { |f| CSV.new(f, headers: true).map(&:to_h) } }
+    # x.report("CSV - Hash output") { File.open("benchmark/test.csv") { |f| CSV.new(f, headers: true).map(&:to_h) } }
 
-    x.report("CSV - StringIO") do
-      io = StringIO.new(test_data)
-      result = CSV.new(io, headers: true).map(&:to_h)
-      io.close
+    # x.report("CSV - Array output") { File.open("benchmark/test.csv") { |f| CSV.new(f).read } }
 
-      result
-    end
+    # x.report("CSV - StringIO") do
+    #   result = []
+    #   io = StringIO.new(test_data)
+    #   CSV.new(io).each { |row| result << row }
+    #   io.close
 
-    x.report("CSV - Array output") { File.open("benchmark/test.csv") { |f| CSV.new(f).read } }
+    #   result
+    # end
 
     x.compare!
   end

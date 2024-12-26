@@ -1,12 +1,12 @@
 use super::{parser::RecordParser, read_impl::ReadImpl};
 use magnus::{Error, Ruby};
-use std::{borrow::Cow, io::Read};
+use std::io::Read;
 
-pub struct RecordReader<T: RecordParser> {
-    pub(crate) reader: ReadImpl<T>,
+pub struct RecordReader<'a, T: RecordParser> {
+    pub(crate) reader: ReadImpl<'a, T>,
 }
 
-impl<T: RecordParser> RecordReader<T> {
+impl<'a, T: RecordParser> RecordReader<'a, T> {
     #[inline]
     pub(crate) fn get_headers(
         ruby: &Ruby,
@@ -16,25 +16,21 @@ impl<T: RecordParser> RecordReader<T> {
         let first_row = reader.headers().map_err(|e| {
             Error::new(
                 ruby.exception_runtime_error(),
-                Cow::Owned(format!("Failed to read headers: {e}")),
+                format!("Failed to read headers: {e}"),
             )
         })?;
 
-        Ok(if has_headers {
-            // Pre-allocate the vector with exact capacity
-            let mut headers = Vec::with_capacity(first_row.len());
+        let mut headers = Vec::with_capacity(first_row.len());
+        if has_headers {
             headers.extend(first_row.iter().map(String::from));
-            headers
         } else {
-            // Pre-allocate the vector with exact capacity
-            let mut headers = Vec::with_capacity(first_row.len());
             headers.extend((0..first_row.len()).map(|i| format!("c{i}")));
-            headers
-        })
+        }
+        Ok(headers)
     }
 }
 
-impl<T: RecordParser> Iterator for RecordReader<T> {
+impl<'a, T: RecordParser> Iterator for RecordReader<'a, T> {
     type Item = T::Output;
 
     #[inline]
@@ -49,7 +45,7 @@ impl<T: RecordParser> Iterator for RecordReader<T> {
     }
 }
 
-impl<T: RecordParser> Drop for RecordReader<T> {
+impl<'a, T: RecordParser> Drop for RecordReader<'a, T> {
     #[inline]
     fn drop(&mut self) {
         self.reader.cleanup();

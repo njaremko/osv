@@ -1,10 +1,23 @@
 use magnus::{
+    rb_sys::AsRawValue,
     scan_args::{get_kwargs, scan_args},
     value::ReprValue,
     Error, RString, Ruby, Symbol, Value,
 };
 
 use crate::csv::BUFFER_CHANNEL_SIZE;
+
+/// Gets direct access to the underlying bytes of a Ruby string
+pub fn string_to_buffer<'a>(value: Value) -> &'a [u8] {
+    let raw = value.as_raw();
+    unsafe {
+        let bytes = std::slice::from_raw_parts(
+            rb_sys::RSTRING_PTR(raw) as *const u8,
+            rb_sys::RSTRING_LEN(raw) as usize,
+        );
+        bytes
+    }
+}
 
 fn parse_string_or_symbol(ruby: &Ruby, value: Value) -> Result<Option<String>, Error> {
     if value.is_nil() {

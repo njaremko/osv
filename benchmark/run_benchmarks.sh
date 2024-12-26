@@ -3,8 +3,8 @@ set -euo pipefail
 
 export RB_SYS_CARGO_PROFILE=release
 
-echo "🧹 Cleaning previous build..."
-cargo clean
+# echo "🧹 Cleaning previous build..."
+# cargo clean
 
 echo "📦 Installing Ruby dependencies..."
 bundle install

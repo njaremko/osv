@@ -2,11 +2,11 @@ use super::{
     header_cache::{CacheError, StringCache},
     parser::RecordParser,
     read_impl::ReadImpl,
-    reader::RecordReader,
-    READ_BUFFER_SIZE,
+    record_reader::RecordReader,
+    RubyReader, READ_BUFFER_SIZE,
 };
 use flate2::read::GzDecoder;
-use magnus::{rb_sys::AsRawValue, value::ReprValue, Error as MagnusError, RString, Ruby, Value};
+use magnus::{rb_sys::AsRawValue, value::ReprValue, Error as MagnusError, Ruby, Value};
 use std::{
     fs::File,
     io::{self, BufReader, Read},
@@ -14,6 +14,7 @@ use std::{
     os::fd::FromRawFd,
     thread,
 };
+
 use thiserror::Error;
 
 pub(crate) static BUFFER_CHANNEL_SIZE: usize = 1024;
@@ -28,8 +29,6 @@ pub enum ReaderError {
     FileOpen(#[from] io::Error),
     #[error("Failed to intern headers: {0}")]
     HeaderIntern(#[from] CacheError),
-    #[error("Unsupported GzipReader")]
-    UnsupportedGzipReader,
     #[error("Ruby error: {0}")]
     Ruby(String),
 }
@@ -49,7 +48,7 @@ impl From<ReaderError> for MagnusError {
     }
 }
 
-pub struct RecordReaderBuilder<'a, T: RecordParser + Send + 'static> {
+pub struct RecordReaderBuilder<'a, T: RecordParser + Send + 'a> {
     ruby: &'a Ruby,
     to_read: Value,
     has_headers: bool,
@@ -120,20 +119,6 @@ impl<'a, T: RecordParser + Send + 'static> RecordReaderBuilder<'a, T> {
         self
     }
 
-    fn handle_string_io(&self) -> Result<Box<dyn Read + Send + 'static>, ReaderError> {
-        let rstring: Value = self.to_read.funcall("string", ())?;
-        let raw_value = rstring.as_raw();
-
-        let string = unsafe {
-            let ptr = rb_sys::RSTRING_PTR(raw_value);
-            let len = rb_sys::RSTRING_LEN(raw_value);
-
-            std::slice::from_raw_parts(ptr as *const u8, len as usize)
-        };
-
-        Ok(Box::new(std::io::Cursor::new(string)))
-    }
-
     fn handle_file_descriptor(&self) -> Result<Box<dyn Read + Send + 'static>, ReaderError> {
         let raw_value = self.to_read.as_raw();
         let fd = std::panic::catch_unwind(|| unsafe { rb_sys::rb_io_descriptor(raw_value) })
@@ -163,44 +148,16 @@ impl<'a, T: RecordParser + Send + 'static> RecordReaderBuilder<'a, T> {
         })
     }
 
-    fn get_reader(&self) -> Result<(Box<dyn Read + Send + 'static>, bool), ReaderError> {
-        let string_io: magnus::RClass = self.ruby.eval("StringIO")?;
-        let gzip_reader_class: magnus::RClass = self.ruby.eval("Zlib::GzipReader")?;
-
-        if self.to_read.is_kind_of(string_io) {
-            self.handle_string_io().map(|r| (r, false))
-        } else if self.to_read.is_kind_of(gzip_reader_class) {
-            Err(ReaderError::UnsupportedGzipReader)
-        } else if self.to_read.is_kind_of(self.ruby.class_io()) {
-            self.handle_file_descriptor().map(|r| (r, true))
+    pub fn build(self) -> Result<RecordReader<'a, T>, ReaderError> {
+        if self.to_read.is_kind_of(self.ruby.class_io()) {
+            let readable = self.handle_file_descriptor()?;
+            self.build_multi_threaded(readable, true)
+        } else if self.to_read.is_kind_of(self.ruby.class_string()) {
+            let readable = self.handle_file_path()?;
+            self.build_multi_threaded(readable, false)
         } else {
-            self.handle_file_path().map(|r| (r, false))
-        }
-    }
-
-    fn get_single_threaded_reader(&self) -> Result<Box<dyn Read>, ReaderError> {
-        let string_io: magnus::RClass = self.ruby.eval("StringIO")?;
-        let gzip_reader_class: magnus::RClass = self.ruby.eval("Zlib::GzipReader")?;
-
-        if self.to_read.is_kind_of(string_io) {
-            self.handle_string_io().map(|r| -> Box<dyn Read> { r })
-        } else if self.to_read.is_kind_of(gzip_reader_class) {
-            Ok(Box::new(RubyReader::new(self.to_read)))
-        } else if self.to_read.is_kind_of(self.ruby.class_io()) {
-            self.handle_file_descriptor()
-                .map(|r| -> Box<dyn Read> { r })
-        } else {
-            self.handle_file_path().map(|r| -> Box<dyn Read> { r })
-        }
-    }
-
-    pub fn build(self) -> Result<RecordReader<T>, ReaderError> {
-        match self.get_reader() {
-            Ok((readable, should_forget)) => self.build_multi_threaded(readable, should_forget),
-            Err(_) => {
-                let readable = self.get_single_threaded_reader()?;
-                self.build_single_threaded(readable)
-            }
+            let readable = Box::new(RubyReader::new(self.ruby, self.to_read));
+            self.build_single_threaded(readable)
         }
     }
 
@@ -208,7 +165,7 @@ impl<'a, T: RecordParser + Send + 'static> RecordReaderBuilder<'a, T> {
         self,
         readable: Box<dyn Read + Send + 'static>,
         should_forget: bool,
-    ) -> Result<RecordReader<T>, ReaderError> {
+    ) -> Result<RecordReader<'static, T>, ReaderError> {
         let flexible = self.flexible || self.flexible_default.is_some();
         let mut reader = csv::ReaderBuilder::new()
             .has_headers(self.has_headers)
@@ -256,8 +213,8 @@ impl<'a, T: RecordParser + Send + 'static> RecordReaderBuilder<'a, T> {
 
     fn build_single_threaded(
         self,
-        readable: Box<dyn Read>,
-    ) -> Result<RecordReader<T>, ReaderError> {
+        readable: Box<dyn Read + 'a>,
+    ) -> Result<RecordReader<'a, T>, ReaderError> {
         let flexible = self.flexible || self.flexible_default.is_some();
         let mut reader = csv::ReaderBuilder::new()
             .has_headers(self.has_headers)
@@ -276,64 +233,8 @@ impl<'a, T: RecordParser + Send + 'static> RecordReaderBuilder<'a, T> {
                 headers: static_headers,
                 null_string: self.null_string,
                 flexible_default: self.flexible_default,
+                string_record: csv::StringRecord::with_capacity(READ_BUFFER_SIZE, headers.len()),
             },
         })
-    }
-}
-
-struct RubyReader {
-    inner: Value,
-    buffer: Option<Vec<u8>>,
-    offset: usize,
-}
-
-impl RubyReader {
-    fn new(inner: Value) -> Self {
-        Self {
-            inner,
-            buffer: None,
-            offset: 0,
-        }
-    }
-}
-
-// Read the entire inner into a vector and then read future reads from that vector with offset
-impl Read for RubyReader {
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        // If we have an existing buffer, read from it
-        if let Some(buffer) = self.buffer.as_ref() {
-            let remaining = buffer.len() - self.offset;
-            let copy_size = remaining.min(buf.len());
-            buf[..copy_size].copy_from_slice(&buffer[self.offset..self.offset + copy_size]);
-            self.offset += copy_size;
-            return Ok(copy_size);
-        }
-
-        // No buffer yet - read the entire content from Ruby
-        let result = self.inner.funcall::<_, _, Value>("read", ());
-        match result {
-            Ok(data) => {
-                if data.is_nil() {
-                    return Ok(0); // EOF
-                }
-
-                let string = RString::from_value(data).ok_or_else(|| {
-                    io::Error::new(io::ErrorKind::Other, "Failed to convert to RString")
-                })?;
-                let bytes = unsafe { string.as_slice() };
-
-                // Store the entire content in the buffer
-                self.buffer = Some(bytes.to_vec());
-                self.offset = 0;
-
-                // Read initial chunk
-                let copy_size = bytes.len().min(buf.len());
-                buf[..copy_size].copy_from_slice(&bytes[..copy_size]);
-                self.offset = copy_size;
-
-                Ok(copy_size)
-            }
-            Err(e) => Err(io::Error::new(io::ErrorKind::Other, e.to_string())),
-        }
     }
 }
