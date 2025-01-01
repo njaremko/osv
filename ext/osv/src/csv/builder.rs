@@ -1,9 +1,8 @@
 use super::{
     header_cache::{CacheError, StringCache},
     parser::RecordParser,
-    read_impl::ReadImpl,
-    record_reader::RecordReader,
-    RubyReader, READ_BUFFER_SIZE,
+    record_reader::{RecordReader, READ_BUFFER_SIZE},
+    RubyReader,
 };
 use flate2::read::GzDecoder;
 use magnus::{rb_sys::AsRawValue, value::ReprValue, Error as MagnusError, Ruby, Value};
@@ -12,7 +11,6 @@ use std::{
     io::{self, BufReader, Read},
     marker::PhantomData,
     os::fd::FromRawFd,
-    thread,
 };
 
 use thiserror::Error;
@@ -156,7 +154,10 @@ impl<'a, T: RecordParser + Send + 'static> RecordReaderBuilder<'a, T> {
             let readable = self.handle_file_path()?;
             self.build_multi_threaded(readable, false)
         } else {
-            let readable = Box::new(RubyReader::new(self.ruby, self.to_read));
+            let readable: Box<dyn Read> =
+                Box::new(RubyReader::from_string_io(self.ruby, self.to_read))
+                    .unwrap_or_else(|_| Box::new(RubyReader::from_value(self.ruby, self.to_read)));
+
             self.build_single_threaded(readable)
         }
     }
@@ -177,38 +178,15 @@ impl<'a, T: RecordParser + Send + 'static> RecordReaderBuilder<'a, T> {
 
         let headers = RecordReader::<T>::get_headers(self.ruby, &mut reader, self.has_headers)?;
         let static_headers = StringCache::intern_many(&headers)?;
-        let headers_for_cleanup = static_headers.clone();
 
-        let (sender, receiver) = kanal::bounded(self.buffer);
-        let null_string = self.null_string.clone();
-
-        let flexible_default = self.flexible_default.clone();
-        let handle = thread::spawn(move || {
-            let mut record = csv::StringRecord::with_capacity(READ_BUFFER_SIZE, headers.len());
-            while let Ok(true) = reader.read_record(&mut record) {
-                let row = T::parse(
-                    &static_headers,
-                    &record,
-                    null_string.as_deref(),
-                    flexible_default.as_deref(),
-                );
-                if sender.send(row).is_err() {
-                    break;
-                }
-            }
-            if should_forget {
-                let file_to_forget = reader.into_inner();
-                std::mem::forget(file_to_forget);
-            }
-        });
-
-        Ok(RecordReader {
-            reader: ReadImpl::MultiThreaded {
-                headers: headers_for_cleanup,
-                receiver,
-                handle: Some(handle),
-            },
-        })
+        Ok(RecordReader::new_multi_threaded(
+            reader,
+            static_headers,
+            self.buffer,
+            self.null_string,
+            self.flexible_default,
+            should_forget,
+        ))
     }
 
     fn build_single_threaded(
@@ -227,14 +205,11 @@ impl<'a, T: RecordParser + Send + 'static> RecordReaderBuilder<'a, T> {
         let headers = RecordReader::<T>::get_headers(self.ruby, &mut reader, self.has_headers)?;
         let static_headers = StringCache::intern_many(&headers)?;
 
-        Ok(RecordReader {
-            reader: ReadImpl::SingleThreaded {
-                reader,
-                headers: static_headers,
-                null_string: self.null_string,
-                flexible_default: self.flexible_default,
-                string_record: csv::StringRecord::with_capacity(READ_BUFFER_SIZE, headers.len()),
-            },
-        })
+        Ok(RecordReader::new_single_threaded(
+            reader,
+            static_headers,
+            self.null_string,
+            self.flexible_default,
+        ))
     }
 }
