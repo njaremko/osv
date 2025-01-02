@@ -2,7 +2,7 @@ use super::{
     header_cache::{CacheError, StringCache},
     parser::RecordParser,
     record_reader::{RecordReader, READ_BUFFER_SIZE},
-    RubyReader,
+    ruby_reader::build_ruby_reader,
 };
 use flate2::read::GzDecoder;
 use magnus::{rb_sys::AsRawValue, value::ReprValue, Error as MagnusError, Ruby, Value};
@@ -46,7 +46,7 @@ impl From<ReaderError> for MagnusError {
     }
 }
 
-pub struct RecordReaderBuilder<'a, T: RecordParser + Send + 'a> {
+pub struct RecordReaderBuilder<'a, T: RecordParser<'a> + Send> {
     ruby: &'a Ruby,
     to_read: Value,
     has_headers: bool,
@@ -55,12 +55,55 @@ pub struct RecordReaderBuilder<'a, T: RecordParser + Send + 'a> {
     null_string: Option<String>,
     buffer: usize,
     flexible: bool,
-    flexible_default: Option<String>,
+    flexible_default: Option<&'a str>,
     trim: csv::Trim,
     _phantom: PhantomData<T>,
 }
 
-impl<'a, T: RecordParser + Send + 'static> RecordReaderBuilder<'a, T> {
+impl<T: RecordParser<'static> + Send + 'static> RecordReaderBuilder<'static, T> {
+    fn build_multi_threaded(
+        self,
+        readable: Box<dyn Read + Send + 'static>,
+        should_forget: bool,
+    ) -> Result<RecordReader<'static, T>, ReaderError> {
+        let flexible = self.flexible || self.flexible_default.is_some();
+        let mut reader = csv::ReaderBuilder::new()
+            .has_headers(self.has_headers)
+            .delimiter(self.delimiter)
+            .quote(self.quote_char)
+            .flexible(flexible)
+            .trim(self.trim)
+            .from_reader(readable);
+
+        let headers = RecordReader::<T>::get_headers(self.ruby, &mut reader, self.has_headers)?;
+        let static_headers = StringCache::intern_many(&headers)?;
+
+        Ok(RecordReader::new_multi_threaded(
+            reader,
+            static_headers,
+            self.buffer,
+            self.null_string,
+            self.flexible_default,
+            should_forget,
+        ))
+    }
+
+    pub fn build_threaded(self) -> Result<RecordReader<'static, T>, ReaderError> {
+        if self.to_read.is_kind_of(self.ruby.class_io()) {
+            let readable = self.handle_file_descriptor()?;
+            self.build_multi_threaded(readable, true)
+        } else if self.to_read.is_kind_of(self.ruby.class_string()) {
+            let readable = self.handle_file_path()?;
+            self.build_multi_threaded(readable, false)
+        } else {
+            let readable = build_ruby_reader(self.ruby, self.to_read)?;
+
+            self.build_single_threaded(readable)
+        }
+    }
+}
+
+impl<'a, T: RecordParser<'a> + Send> RecordReaderBuilder<'a, T> {
     pub fn new(ruby: &'a Ruby, to_read: Value) -> Self {
         Self {
             ruby,
@@ -107,7 +150,7 @@ impl<'a, T: RecordParser + Send + 'static> RecordReaderBuilder<'a, T> {
         self
     }
 
-    pub fn flexible_default(mut self, flexible_default: Option<String>) -> Self {
+    pub fn flexible_default(mut self, flexible_default: Option<&'a str>) -> Self {
         self.flexible_default = flexible_default;
         self
     }
@@ -144,49 +187,6 @@ impl<'a, T: RecordParser + Send + 'static> RecordReaderBuilder<'a, T> {
         } else {
             Box::new(BufReader::with_capacity(READ_BUFFER_SIZE, file))
         })
-    }
-
-    pub fn build(self) -> Result<RecordReader<'a, T>, ReaderError> {
-        if self.to_read.is_kind_of(self.ruby.class_io()) {
-            let readable = self.handle_file_descriptor()?;
-            self.build_multi_threaded(readable, true)
-        } else if self.to_read.is_kind_of(self.ruby.class_string()) {
-            let readable = self.handle_file_path()?;
-            self.build_multi_threaded(readable, false)
-        } else {
-            let readable: Box<dyn Read> =
-                Box::new(RubyReader::from_string_io(self.ruby, self.to_read))
-                    .unwrap_or_else(|_| Box::new(RubyReader::from_value(self.ruby, self.to_read)));
-
-            self.build_single_threaded(readable)
-        }
-    }
-
-    fn build_multi_threaded(
-        self,
-        readable: Box<dyn Read + Send + 'static>,
-        should_forget: bool,
-    ) -> Result<RecordReader<'static, T>, ReaderError> {
-        let flexible = self.flexible || self.flexible_default.is_some();
-        let mut reader = csv::ReaderBuilder::new()
-            .has_headers(self.has_headers)
-            .delimiter(self.delimiter)
-            .quote(self.quote_char)
-            .flexible(flexible)
-            .trim(self.trim)
-            .from_reader(readable);
-
-        let headers = RecordReader::<T>::get_headers(self.ruby, &mut reader, self.has_headers)?;
-        let static_headers = StringCache::intern_many(&headers)?;
-
-        Ok(RecordReader::new_multi_threaded(
-            reader,
-            static_headers,
-            self.buffer,
-            self.null_string,
-            self.flexible_default,
-            should_forget,
-        ))
     }
 
     fn build_single_threaded(

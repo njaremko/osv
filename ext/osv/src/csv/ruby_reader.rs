@@ -21,12 +21,28 @@ pub struct RubyReader<'a, T> {
     buffered_bytes: usize,
 }
 
+pub fn build_ruby_reader<'a>(
+    ruby: &'a Ruby,
+    input: Value,
+) -> Result<Box<dyn Read + 'a>, magnus::Error> {
+    if RubyReader::is_string_io(ruby, &input) {
+        RubyReader::from_string_io(ruby, input)
+    } else if RubyReader::is_io_like(&input) {
+        RubyReader::from_io(ruby, input)
+    } else {
+        RubyReader::from_string_like(ruby, input)
+    }
+}
+
 impl<'a> RubyReader<'a, Value> {
-    pub fn from_value(ruby: &'a Ruby, input: Value) -> Box<dyn Read + 'a> {
+    fn from_io(ruby: &'a Ruby, input: Value) -> Result<Box<dyn Read + 'a>, magnus::Error> {
         if Self::is_io_like(&input) {
-            Box::new(Self::from_io_like(ruby, input))
+            Ok(Box::new(Self::from_io_like(ruby, input)))
         } else {
-            Box::new(Self::from_string_like(ruby, input))
+            Err(magnus::Error::new(
+                magnus::exception::type_error(),
+                "Input is not an IO-like object",
+            ))
         }
     }
 
@@ -39,17 +55,6 @@ impl<'a> RubyReader<'a, Value> {
             ruby,
             inner: input,
             buffer: Some(vec![0; READ_BUFFER_SIZE]),
-            offset: 0,
-            buffered_bytes: 0,
-        }
-    }
-
-    fn from_string_like(ruby: &'a Ruby, input: Value) -> Self {
-        let string_content = input.funcall::<_, _, Value>("to_str", ()).unwrap();
-        Self {
-            ruby,
-            inner: string_content,
-            buffer: None,
             offset: 0,
             buffered_bytes: 0,
         }
@@ -132,6 +137,17 @@ impl<'a> RubyReader<'a, RString> {
             Opaque::from(class)
         });
         input.is_kind_of(ruby.get_inner(*string_io_class))
+    }
+
+    fn from_string_like(ruby: &'a Ruby, input: Value) -> Result<Box<dyn Read + 'a>, magnus::Error> {
+        let string_content = input.funcall::<_, _, RString>("to_str", ()).unwrap();
+        Ok(Box::new(Self {
+            ruby,
+            inner: string_content,
+            buffer: None,
+            offset: 0,
+            buffered_bytes: 0,
+        }))
     }
 }
 

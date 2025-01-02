@@ -1,4 +1,4 @@
-use crate::csv::{CsvRecord, RecordReaderBuilder};
+use crate::csv::{CowValue, CsvRecord, RecordReaderBuilder};
 use crate::utils::*;
 use csv::Trim;
 use magnus::value::ReprValue;
@@ -6,11 +6,10 @@ use magnus::{block::Yield, Error, KwArgs, RHash, Ruby, Symbol, Value};
 use std::collections::HashMap;
 use xxhash_rust::xxh3::Xxh3Builder;
 
-pub fn parse_csv(
-    // ruby: &Ruby,
+pub fn parse_csv<'a>(
     rb_self: Value,
     args: &[Value],
-) -> Result<Yield<Box<dyn Iterator<Item = CsvRecord<Xxh3Builder>>>>, Error> {
+) -> Result<Yield<Box<dyn Iterator<Item = CsvRecord<'static, Xxh3Builder>>>>, Error> {
     let original = unsafe { Ruby::get_unchecked() };
     let ruby: &'static Ruby = Box::leak(Box::new(original));
 
@@ -27,6 +26,10 @@ pub fn parse_csv(
         trim,
     } = parse_csv_args(&ruby, args)?;
 
+    let flexible_default: &'static Option<String> = Box::leak(Box::new(flexible_default));
+    let leaked_flexible_default: &'static Option<&str> =
+        Box::leak(Box::new(flexible_default.as_deref()));
+
     if !ruby.block_given() {
         return create_enumerator(EnumeratorArgs {
             rb_self,
@@ -38,7 +41,7 @@ pub fn parse_csv(
             buffer_size,
             result_type,
             flexible,
-            flexible_default,
+            flexible_default: leaked_flexible_default.as_deref(),
             trim: match trim {
                 Trim::All => Some("all".to_string()),
                 Trim::Headers => Some("headers".to_string()),
@@ -49,32 +52,32 @@ pub fn parse_csv(
     }
 
     let iter: Box<dyn Iterator<Item = CsvRecord<Xxh3Builder>>> = match result_type.as_str() {
-        "hash" => Box::new(
-            RecordReaderBuilder::<HashMap<&'static str, Option<String>, Xxh3Builder>>::new(
-                &ruby, to_read,
-            )
+        "hash" => {
+            let builder = RecordReaderBuilder::<
+                HashMap<&'static str, Option<CowValue<'static>>, Xxh3Builder>,
+            >::new(&ruby, to_read)
             .has_headers(has_headers)
             .flexible(flexible)
-            .flexible_default(flexible_default)
+            .flexible_default(flexible_default.as_deref())
             .trim(trim)
             .delimiter(delimiter)
             .quote_char(quote_char)
             .null_string(null_string)
-            .buffer(buffer_size)
-            .build()?
-            .map(CsvRecord::Map),
-        ),
+            .buffer(buffer_size);
+
+            Box::new(builder.build_threaded()?.map(CsvRecord::Map))
+        }
         "array" => Box::new(
-            RecordReaderBuilder::<Vec<Option<String>>>::new(&ruby, to_read)
+            RecordReaderBuilder::<Vec<Option<CowValue<'static>>>>::new(&ruby, to_read)
                 .has_headers(has_headers)
                 .flexible(flexible)
-                .flexible_default(flexible_default)
+                .flexible_default(flexible_default.as_deref())
                 .trim(trim)
                 .delimiter(delimiter)
                 .quote_char(quote_char)
                 .null_string(null_string)
                 .buffer(buffer_size)
-                .build()?
+                .build_threaded()?
                 .map(CsvRecord::Vec),
         ),
         _ => {
@@ -98,13 +101,13 @@ struct EnumeratorArgs {
     buffer_size: usize,
     result_type: String,
     flexible: bool,
-    flexible_default: Option<String>,
+    flexible_default: Option<&'static str>,
     trim: Option<String>,
 }
 
 fn create_enumerator(
     args: EnumeratorArgs,
-) -> Result<Yield<Box<dyn Iterator<Item = CsvRecord<Xxh3Builder>>>>, Error> {
+) -> Result<Yield<Box<dyn Iterator<Item = CsvRecord<'static, Xxh3Builder>>>>, Error> {
     let kwargs = RHash::new();
     kwargs.aset(Symbol::new("has_headers"), args.has_headers)?;
     kwargs.aset(

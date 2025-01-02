@@ -1,20 +1,20 @@
 use super::header_cache::StringCache;
 use super::parser::RecordParser;
 use magnus::{Error, Ruby};
-use std::{io::Read, thread};
+use std::{borrow::Cow, io::Read, thread};
 
 pub(crate) const READ_BUFFER_SIZE: usize = 16384;
 
-pub struct RecordReader<'a, T: RecordParser> {
+pub struct RecordReader<'a, T: RecordParser<'a>> {
     inner: ReaderImpl<'a, T>,
 }
 
-enum ReaderImpl<'a, T: RecordParser> {
+enum ReaderImpl<'a, T: RecordParser<'a>> {
     SingleThreaded {
         reader: csv::Reader<Box<dyn Read + 'a>>,
         headers: Vec<&'static str>,
         null_string: Option<String>,
-        flexible_default: Option<String>,
+        flexible_default: Option<Cow<'a, str>>,
         string_record: csv::StringRecord,
     },
     MultiThreaded {
@@ -24,7 +24,7 @@ enum ReaderImpl<'a, T: RecordParser> {
     },
 }
 
-impl<'a, T: RecordParser> RecordReader<'a, T> {
+impl<'a, T: RecordParser<'a>> RecordReader<'a, T> {
     #[inline]
     pub(crate) fn get_headers(
         ruby: &Ruby,
@@ -51,7 +51,7 @@ impl<'a, T: RecordParser> RecordReader<'a, T> {
         reader: csv::Reader<Box<dyn Read + 'a>>,
         headers: Vec<&'static str>,
         null_string: Option<String>,
-        flexible_default: Option<String>,
+        flexible_default: Option<&'a str>,
     ) -> Self {
         let headers_len = headers.len();
         Self {
@@ -59,20 +59,20 @@ impl<'a, T: RecordParser> RecordReader<'a, T> {
                 reader,
                 headers,
                 null_string,
-                flexible_default,
+                flexible_default: flexible_default.map(|s| Cow::Borrowed(s)),
                 string_record: csv::StringRecord::with_capacity(READ_BUFFER_SIZE, headers_len),
             },
         }
     }
 }
 
-impl<'a, T: RecordParser + Send + 'static> RecordReader<'a, T> {
+impl<T: RecordParser<'static> + Send> RecordReader<'static, T> {
     pub(crate) fn new_multi_threaded(
         mut reader: csv::Reader<Box<dyn Read + Send + 'static>>,
         headers: Vec<&'static str>,
         buffer_size: usize,
         null_string: Option<String>,
-        flexible_default: Option<String>,
+        flexible_default: Option<&'static str>,
         should_forget: bool,
     ) -> Self {
         let (sender, receiver) = kanal::bounded(buffer_size);
@@ -86,7 +86,7 @@ impl<'a, T: RecordParser + Send + 'static> RecordReader<'a, T> {
                     &headers_for_thread,
                     &record,
                     null_string.as_deref(),
-                    flexible_default.as_deref(),
+                    flexible_default.map(|s| Cow::Borrowed(s)),
                 );
                 if sender.send(row).is_err() {
                     break;
@@ -108,7 +108,7 @@ impl<'a, T: RecordParser + Send + 'static> RecordReader<'a, T> {
     }
 }
 
-impl<'a, T: RecordParser> Iterator for RecordReader<'a, T> {
+impl<'a, T: RecordParser<'a>> Iterator for RecordReader<'a, T> {
     type Item = T::Output;
 
     #[inline]
@@ -136,7 +136,7 @@ impl<'a, T: RecordParser> Iterator for RecordReader<'a, T> {
                     headers,
                     &string_record,
                     null_string.as_deref(),
-                    flexible_default.as_deref(),
+                    flexible_default.clone(),
                 )),
                 Ok(false) => None,
                 Err(_e) => None,
@@ -151,7 +151,7 @@ impl<'a, T: RecordParser> Iterator for RecordReader<'a, T> {
     }
 }
 
-impl<'a, T: RecordParser> Drop for RecordReader<'a, T> {
+impl<'a, T: RecordParser<'a>> Drop for RecordReader<'a, T> {
     #[inline]
     fn drop(&mut self) {
         match &mut self.inner {

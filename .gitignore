@@ -6,3 +6,4 @@ pkg/
 **/.DS_Store
 .env
 /benchmark/*.csv*
+profile.json
