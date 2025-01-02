@@ -140,7 +140,10 @@ impl<'a> RubyReader<'a, RString> {
     }
 
     fn from_string_like(ruby: &'a Ruby, input: Value) -> Result<Box<dyn Read + 'a>, magnus::Error> {
-        let string_content = input.funcall::<_, _, RString>("to_str", ()).unwrap();
+        // Try calling `to_str`, and if that fails, try `to_s`
+        let string_content = input
+            .funcall::<_, _, RString>("to_str", ())
+            .or_else(|_| input.funcall::<_, _, RString>("to_s", ()))?;
         Ok(Box::new(Self {
             ruby,
             inner: string_content,

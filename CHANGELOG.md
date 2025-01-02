@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.14
+
+After quite a bit of profiling:
+
+- When you give `OSV` a file handle IO object, we have an optimization to grab the underlying open file handle and do all reading directly in Rust. This release adds lots of optimizations for parsing objects that implement `IO`'s `read` method without having an underlying file handle available.
+- This release adds a lot of optimizations for parsing `StringIO` objects, as well as anything that doesn't implement `IO`'s `read` method, but does implement `to_str` or `to_s` methods.
+- Further optimizations to string allocations in Rust code.
+
 ## 0.3.13
 
 - Turns out, gemspec descriptions cannot be markdown. Fixing that.
