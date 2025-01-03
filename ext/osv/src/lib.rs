@@ -1,3 +1,4 @@
+mod allocator;
 mod csv;
 mod reader;
 mod utils;

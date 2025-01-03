@@ -30,7 +30,7 @@ impl<'a, S: BuildHasher + Default + 'a> RecordParser<'a>
         let mut map = HashMap::with_capacity_and_hasher(headers.len(), S::default());
 
         let shared_empty = Cow::Borrowed("");
-        let shared_default = flexible_default.map(|f| CowValue(f));
+        let shared_default = flexible_default.map(CowValue);
         headers.iter().enumerate().for_each(|(i, &header)| {
             let value = record.get(i).map_or_else(
                 || shared_default.clone(),
@@ -64,7 +64,7 @@ impl<'a> RecordParser<'a> for Vec<Option<CowValue<'a>>> {
         let mut vec = Vec::with_capacity(target_len);
 
         let shared_empty = Cow::Borrowed("");
-        let shared_default = flexible_default.map(|f| CowValue(f));
+        let shared_default = flexible_default.map(CowValue);
 
         for field in record.iter() {
             let value = if Some(field) == null_string {

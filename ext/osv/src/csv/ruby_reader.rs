@@ -2,7 +2,7 @@ use magnus::{
     value::{Opaque, ReprValue},
     RClass, RString, Ruby, Value,
 };
-use std::io::{self, Read, Seek};
+use std::io::{self, Read, Seek, SeekFrom, Write};
 use std::sync::OnceLock;
 
 static STRING_IO_CLASS: OnceLock<Opaque<RClass>> = OnceLock::new();
@@ -18,8 +18,8 @@ pub trait SeekableRead: std::io::Read + Seek {}
 impl SeekableRead for RubyReader<Value> {}
 impl SeekableRead for RubyReader<RString> {}
 
-pub fn build_ruby_reader<'a>(
-    ruby: &'a Ruby,
+pub fn build_ruby_reader(
+    ruby: &Ruby,
     input: Value,
 ) -> Result<Box<dyn SeekableRead>, magnus::Error> {
     if RubyReader::is_string_io(ruby, &input) {
@@ -33,48 +33,49 @@ pub fn build_ruby_reader<'a>(
 
 impl Seek for RubyReader<Value> {
     fn seek(&mut self, pos: io::SeekFrom) -> io::Result<u64> {
-        let seek_to = match pos {
-            io::SeekFrom::Start(offset) => {
-                // SEEK_SET - absolute position
-                offset as i64
-            }
-            io::SeekFrom::End(offset) => {
-                // SEEK_END - from end of stream
-                offset
-            }
-            io::SeekFrom::Current(offset) => {
-                // SEEK_CUR - relative to current
-                offset
-            }
+        let (whence, offset) = match pos {
+            SeekFrom::Start(i) => (0, i as i64),
+            SeekFrom::Current(i) => (1, i),
+            SeekFrom::End(i) => (2, i),
         };
 
-        let whence = match pos {
-            io::SeekFrom::Start(_) => 0,   // SEEK_SET
-            io::SeekFrom::End(_) => 2,     // SEEK_END
-            io::SeekFrom::Current(_) => 1, // SEEK_CUR
-        };
+        let new_position = self
+            .inner
+            .funcall("seek", (offset, whence))
+            .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))?;
 
-        // Call Ruby's seek method
-        let _: u64 = self.inner.funcall("seek", (seek_to, whence)).unwrap();
+        Ok(new_position)
+    }
+}
 
-        // Get current position
-        let pos: u64 = self.inner.funcall("pos", ()).unwrap();
+impl Write for RubyReader<Value> {
+    fn write(&mut self, buf: &[u8]) -> Result<usize, io::Error> {
+        let ruby_bytes = RString::from_slice(buf);
 
-        Ok(pos)
+        let bytes_written = self
+            .inner
+            .funcall::<_, _, usize>("write", (ruby_bytes,))
+            .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))?;
+
+        Ok(bytes_written)
+    }
+
+    fn flush(&mut self) -> Result<(), io::Error> {
+        self.inner
+            .funcall::<_, _, Value>("flush", ())
+            .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))?;
+
+        Ok(())
     }
 }
 
 impl Seek for RubyReader<RString> {
     fn seek(&mut self, pos: io::SeekFrom) -> io::Result<u64> {
         match pos {
-            io::SeekFrom::Start(offset) => {
-                self.offset = offset as usize;
-            }
+            io::SeekFrom::Start(offset) => self.offset = offset as usize,
+            io::SeekFrom::Current(offset) => self.offset = (self.offset as i64 + offset) as usize,
             io::SeekFrom::End(offset) => {
-                self.offset = (self.inner.len() - offset as usize) as usize;
-            }
-            io::SeekFrom::Current(offset) => {
-                self.offset = (self.offset as i64 + offset) as usize;
+                self.offset = self.inner.len() - offset as usize
             }
         }
         Ok(self.offset as u64)
@@ -102,27 +103,6 @@ impl RubyReader<Value> {
             inner: input,
             offset: 0,
         }
-    }
-
-    fn read_from_ruby(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        let result = self
-            .inner
-            .funcall::<_, _, RString>("read", (buf.len(),))
-            .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))?;
-
-        if result.is_nil() {
-            return Ok(0); // EOF
-        }
-
-        let bytes = unsafe { result.as_slice() };
-        let bytes_len = bytes.len();
-        if bytes_len == 0 {
-            return Ok(0);
-        }
-
-        buf[..bytes_len].copy_from_slice(bytes);
-        self.offset = bytes_len;
-        Ok(bytes_len)
     }
 }
 
@@ -166,8 +146,15 @@ impl RubyReader<RString> {
 }
 
 impl Read for RubyReader<Value> {
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        self.read_from_ruby(buf)
+    fn read(&mut self, mut buf: &mut [u8]) -> io::Result<usize> {
+        let bytes = self
+            .inner
+            .funcall::<_, _, RString>("read", (buf.len(),))
+            .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))?;
+
+        buf.write_all(unsafe { bytes.as_slice() })?;
+
+        Ok(bytes.len())
     }
 }
 

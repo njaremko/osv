@@ -58,7 +58,7 @@ File.write("benchmark_test.csv", test_data)
 io = StringIO.new(test_data)
 
 # Process the file in a loop for 10 seconds
-end_time = Time.now + 10
+end_time = Time.now + 30
 iterations = 0
 
 while Time.now < end_time

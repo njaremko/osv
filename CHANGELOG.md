@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.15
+
+- Some internal refactoring to improve maintainability
+- More optimizations for parsing IO-like objects without an underlying file handle
+
 ## 0.3.14
 
 After quite a bit of profiling:

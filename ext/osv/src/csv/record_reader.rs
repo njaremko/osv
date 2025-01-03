@@ -10,6 +10,7 @@ pub struct RecordReader<'a, T: RecordParser<'a>> {
     inner: ReaderImpl<'a, T>,
 }
 
+#[allow(clippy::large_enum_variant)]
 enum ReaderImpl<'a, T: RecordParser<'a>> {
     SingleThreaded {
         reader: csv::Reader<BufReader<Box<dyn SeekableRead>>>,
@@ -60,7 +61,7 @@ impl<'a, T: RecordParser<'a>> RecordReader<'a, T> {
                 reader,
                 headers,
                 null_string,
-                flexible_default: flexible_default.map(|s| Cow::Borrowed(s)),
+                flexible_default: flexible_default.map(Cow::Borrowed),
                 string_record: csv::StringRecord::with_capacity(READ_BUFFER_SIZE, headers_len),
             },
         }
@@ -86,7 +87,7 @@ impl<T: RecordParser<'static> + Send> RecordReader<'static, T> {
                     &headers_for_thread,
                     &record,
                     null_string.as_deref(),
-                    flexible_default.map(|s| Cow::Borrowed(s)),
+                    flexible_default.map(Cow::Borrowed),
                 );
                 if sender.send(row).is_err() {
                     break;
@@ -130,7 +131,7 @@ impl<'a, T: RecordParser<'a>> Iterator for RecordReader<'a, T> {
             } => match reader.read_record(string_record) {
                 Ok(true) => Some(T::parse(
                     headers,
-                    &string_record,
+                    string_record,
                     null_string.as_deref(),
                     flexible_default.clone(),
                 )),

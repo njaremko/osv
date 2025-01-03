@@ -13,12 +13,12 @@ fn parse_string_or_symbol(ruby: &Ruby, value: Value) -> Result<Option<String>, E
         RString::from_value(value)
             .ok_or_else(|| Error::new(magnus::exception::type_error(), "Invalid string value"))?
             .to_string()
-            .map(|s| Some(s))
+            .map(Some)
     } else if value.is_kind_of(ruby.class_symbol()) {
         Symbol::from_value(value)
             .ok_or_else(|| Error::new(magnus::exception::type_error(), "Invalid symbol value"))?
             .funcall("to_s", ())
-            .map(|s| Some(s))
+            .map(Some)
     } else {
         Err(Error::new(
             magnus::exception::type_error(),
@@ -28,7 +28,7 @@ fn parse_string_or_symbol(ruby: &Ruby, value: Value) -> Result<Option<String>, E
 }
 
 #[derive(Debug)]
-pub struct CsvArgs {
+pub struct ReadCsvArgs {
     pub to_read: Value,
     pub has_headers: bool,
     pub delimiter: u8,
@@ -42,7 +42,7 @@ pub struct CsvArgs {
 }
 
 /// Parse common arguments for CSV parsing
-pub fn parse_csv_args(ruby: &Ruby, args: &[Value]) -> Result<CsvArgs, Error> {
+pub fn parse_read_csv_args(ruby: &Ruby, args: &[Value]) -> Result<ReadCsvArgs, Error> {
     let parsed_args = scan_args::<(Value,), (), (), (), _, ()>(args)?;
     let (to_read,) = parsed_args.required;
 
@@ -166,7 +166,7 @@ pub fn parse_csv_args(ruby: &Ruby, args: &[Value]) -> Result<CsvArgs, Error> {
         None => csv::Trim::None,
     };
 
-    Ok(CsvArgs {
+    Ok(ReadCsvArgs {
         to_read,
         has_headers,
         delimiter,

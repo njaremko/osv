@@ -7,7 +7,7 @@ pub enum CsvRecord<'a, S: BuildHasher + Default> {
     Map(HashMap<&'static str, Option<CowValue<'a>>, S>),
 }
 
-impl<'a, S: BuildHasher + Default> IntoValue for CsvRecord<'a, S> {
+impl<S: BuildHasher + Default> IntoValue for CsvRecord<'_, S> {
     #[inline]
     fn into_value_with(self, handle: &Ruby) -> Value {
         match self {
@@ -31,7 +31,7 @@ impl<'a, S: BuildHasher + Default> IntoValue for CsvRecord<'a, S> {
 #[derive(Debug, Clone)]
 pub struct CowValue<'a>(pub Cow<'a, str>);
 
-impl<'a> IntoValue for CowValue<'a> {
+impl IntoValue for CowValue<'_> {
     fn into_value_with(self, handle: &Ruby) -> Value {
         self.0.into_value_with(handle)
     }
