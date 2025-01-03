@@ -1,4 +1,4 @@
-use crate::csv::{CowValue, CsvRecord, RecordReaderBuilder};
+use crate::csv::{CowValue, CsvRecord, RecordReaderBuilder, StringCacheKey};
 use crate::utils::*;
 use ahash::RandomState;
 use csv::Trim;
@@ -54,7 +54,7 @@ pub fn parse_csv(
     let iter: Box<dyn Iterator<Item = CsvRecord<RandomState>>> = match result_type.as_str() {
         "hash" => {
             let builder = RecordReaderBuilder::<
-                HashMap<&'static str, Option<CowValue<'static>>, RandomState>,
+                HashMap<StringCacheKey, Option<CowValue<'static>>, RandomState>,
             >::new(ruby, to_read)
             .has_headers(has_headers)
             .flexible(flexible)

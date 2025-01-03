@@ -74,9 +74,7 @@ impl Seek for RubyReader<RString> {
         match pos {
             io::SeekFrom::Start(offset) => self.offset = offset as usize,
             io::SeekFrom::Current(offset) => self.offset = (self.offset as i64 + offset) as usize,
-            io::SeekFrom::End(offset) => {
-                self.offset = self.inner.len() - offset as usize
-            }
+            io::SeekFrom::End(offset) => self.offset = self.inner.len() - offset as usize,
         }
         Ok(self.offset as u64)
     }

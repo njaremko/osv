@@ -1,10 +1,13 @@
-use magnus::{IntoValue, Ruby, Value};
+use itertools::Itertools;
+use magnus::{value::ReprValue, IntoValue, Ruby, Value};
 use std::{borrow::Cow, collections::HashMap, hash::BuildHasher};
+
+use super::StringCacheKey;
 
 #[derive(Debug)]
 pub enum CsvRecord<'a, S: BuildHasher + Default> {
     Vec(Vec<Option<CowValue<'a>>>),
-    Map(HashMap<&'static str, Option<CowValue<'a>>, S>),
+    Map(HashMap<StringCacheKey, Option<CowValue<'a>>, S>),
 }
 
 impl<S: BuildHasher + Default> IntoValue for CsvRecord<'_, S> {
@@ -19,9 +22,23 @@ impl<S: BuildHasher + Default> IntoValue for CsvRecord<'_, S> {
             CsvRecord::Map(map) => {
                 // Pre-allocate the hash with the known size
                 let hash = handle.hash_new_capa(map.len());
-                map.into_iter()
-                    .try_for_each(|(k, v)| hash.aset(k, v))
-                    .unwrap();
+
+                let mut values: [Value; 128] = [handle.qnil().as_value(); 128];
+                let mut i = 0;
+
+                for chunk in &map.into_iter().chunks(128) {
+                    for (k, v) in chunk {
+                        values[i] = handle.into_value(k);
+                        values[i + 1] = handle.into_value(v);
+                        i += 2;
+                    }
+                    hash.bulk_insert(&values[..i]).unwrap();
+
+                    // Zero out used values
+                    values[..i].fill(handle.qnil().as_value());
+                    i = 0;
+                }
+
                 hash.into_value_with(handle)
             }
         }

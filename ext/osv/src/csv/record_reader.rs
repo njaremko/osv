@@ -1,3 +1,4 @@
+use super::header_cache::StringCacheKey;
 use super::parser::RecordParser;
 use super::{header_cache::StringCache, ruby_reader::SeekableRead};
 use magnus::{Error, Ruby};
@@ -14,13 +15,13 @@ pub struct RecordReader<'a, T: RecordParser<'a>> {
 enum ReaderImpl<'a, T: RecordParser<'a>> {
     SingleThreaded {
         reader: csv::Reader<BufReader<Box<dyn SeekableRead>>>,
-        headers: Vec<&'static str>,
+        headers: Vec<StringCacheKey>,
         null_string: Option<String>,
         flexible_default: Option<Cow<'a, str>>,
         string_record: csv::StringRecord,
     },
     MultiThreaded {
-        headers: Vec<&'static str>,
+        headers: Vec<StringCacheKey>,
         receiver: kanal::Receiver<T::Output>,
         handle: Option<thread::JoinHandle<()>>,
     },
@@ -51,7 +52,7 @@ impl<'a, T: RecordParser<'a>> RecordReader<'a, T> {
 
     pub(crate) fn new_single_threaded(
         reader: csv::Reader<BufReader<Box<dyn SeekableRead>>>,
-        headers: Vec<&'static str>,
+        headers: Vec<StringCacheKey>,
         null_string: Option<String>,
         flexible_default: Option<&'a str>,
     ) -> Self {
@@ -71,7 +72,7 @@ impl<'a, T: RecordParser<'a>> RecordReader<'a, T> {
 impl<T: RecordParser<'static> + Send> RecordReader<'static, T> {
     pub(crate) fn new_multi_threaded(
         mut reader: csv::Reader<Box<dyn Read + Send + 'static>>,
-        headers: Vec<&'static str>,
+        headers: Vec<StringCacheKey>,
         buffer_size: usize,
         null_string: Option<String>,
         flexible_default: Option<&'static str>,
@@ -162,10 +163,10 @@ impl<'a, T: RecordParser<'a>> Drop for RecordReader<'a, T> {
                 if let Some(handle) = handle.take() {
                     let _ = handle.join();
                 }
-                let _ = StringCache::clear(headers);
+                let _ = StringCache::clear(&headers);
             }
             ReaderImpl::SingleThreaded { headers, .. } => {
-                let _ = StringCache::clear(headers);
+                let _ = StringCache::clear(&headers);
             }
         }
     }

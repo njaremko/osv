@@ -13,6 +13,12 @@ RubyVM::YJIT.enable
 
 # Generate a larger test file for more meaningful benchmarks
 def generate_test_data(rows = 1_000_000)
+  if File.exist?("benchmark/test.csv")
+    age_total = 0
+    CSV.foreach("benchmark/test.csv", headers: true) { |row| age_total += row["age"].to_i }
+    return StringIO.new(File.read("benchmark/test.csv")), age_total
+  end
+
   age = 0
   headers = %w[
     id
@@ -180,5 +186,5 @@ begin
   end
 ensure
   # Cleanup test files even if the script fails or is interrupted
-  FileUtils.rm_f(TEST_FILES)
+  # FileUtils.rm_f(TEST_FILES)
 end

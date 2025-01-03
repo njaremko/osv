@@ -2,13 +2,14 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use std::hash::BuildHasher;
 
+use super::header_cache::StringCacheKey;
 use super::CowValue;
 
 pub trait RecordParser<'a> {
     type Output: 'a;
 
     fn parse(
-        headers: &[&'static str],
+        headers: &[StringCacheKey],
         record: &csv::StringRecord,
         null_string: Option<&str>,
         flexible_default: Option<Cow<'a, str>>,
@@ -16,13 +17,13 @@ pub trait RecordParser<'a> {
 }
 
 impl<'a, S: BuildHasher + Default + 'a> RecordParser<'a>
-    for HashMap<&'static str, Option<CowValue<'a>>, S>
+    for HashMap<StringCacheKey, Option<CowValue<'a>>, S>
 {
     type Output = Self;
 
     #[inline]
     fn parse(
-        headers: &[&'static str],
+        headers: &[StringCacheKey],
         record: &csv::StringRecord,
         null_string: Option<&str>,
         flexible_default: Option<Cow<'a, str>>,
@@ -31,7 +32,7 @@ impl<'a, S: BuildHasher + Default + 'a> RecordParser<'a>
 
         let shared_empty = Cow::Borrowed("");
         let shared_default = flexible_default.map(CowValue);
-        headers.iter().enumerate().for_each(|(i, &header)| {
+        headers.iter().enumerate().for_each(|(i, ref header)| {
             let value = record.get(i).map_or_else(
                 || shared_default.clone(),
                 |field| {
@@ -44,7 +45,7 @@ impl<'a, S: BuildHasher + Default + 'a> RecordParser<'a>
                     }
                 },
             );
-            map.insert(header, value);
+            map.insert((*header).clone(), value);
         });
         map
     }
@@ -55,7 +56,7 @@ impl<'a> RecordParser<'a> for Vec<Option<CowValue<'a>>> {
 
     #[inline]
     fn parse(
-        headers: &[&'static str],
+        headers: &[StringCacheKey],
         record: &csv::StringRecord,
         null_string: Option<&str>,
         flexible_default: Option<Cow<'a, str>>,

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.16
+
+- Optimize hash construction by interning key strings
+
 ## 0.3.15
 
 - Some internal refactoring to improve maintainability
