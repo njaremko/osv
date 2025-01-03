@@ -2,7 +2,8 @@ use super::{
     header_cache::{CacheError, StringCache},
     parser::RecordParser,
     record_reader::{RecordReader, READ_BUFFER_SIZE},
-    ruby_reader::build_ruby_reader,
+    ruby_reader::{build_ruby_reader, SeekableRead},
+    ForgottenFileHandle,
 };
 use flate2::read::GzDecoder;
 use magnus::{rb_sys::AsRawValue, value::ReprValue, Error as MagnusError, Ruby, Value};
@@ -10,6 +11,7 @@ use std::{
     fs::File,
     io::{self, BufReader, Read},
     marker::PhantomData,
+    mem::ManuallyDrop,
     os::fd::FromRawFd,
 };
 
@@ -64,7 +66,6 @@ impl<T: RecordParser<'static> + Send + 'static> RecordReaderBuilder<'static, T> 
     fn build_multi_threaded(
         self,
         readable: Box<dyn Read + Send + 'static>,
-        should_forget: bool,
     ) -> Result<RecordReader<'static, T>, ReaderError> {
         let flexible = self.flexible || self.flexible_default.is_some();
         let mut reader = csv::ReaderBuilder::new()
@@ -84,21 +85,20 @@ impl<T: RecordParser<'static> + Send + 'static> RecordReaderBuilder<'static, T> 
             self.buffer,
             self.null_string,
             self.flexible_default,
-            should_forget,
         ))
     }
 
     pub fn build_threaded(self) -> Result<RecordReader<'static, T>, ReaderError> {
         if self.to_read.is_kind_of(self.ruby.class_io()) {
             let readable = self.handle_file_descriptor()?;
-            self.build_multi_threaded(readable, true)
+            self.build_multi_threaded(readable)
         } else if self.to_read.is_kind_of(self.ruby.class_string()) {
             let readable = self.handle_file_path()?;
-            self.build_multi_threaded(readable, false)
+            self.build_multi_threaded(readable)
         } else {
             let readable = build_ruby_reader(self.ruby, self.to_read)?;
-
-            self.build_single_threaded(readable)
+            let buffered_reader = BufReader::with_capacity(READ_BUFFER_SIZE, readable);
+            self.build_single_threaded(buffered_reader)
         }
     }
 }
@@ -172,7 +172,11 @@ impl<'a, T: RecordParser<'a> + Send> RecordReaderBuilder<'a, T> {
         }
 
         let file = unsafe { File::from_raw_fd(fd) };
-        Ok(Box::new(BufReader::with_capacity(READ_BUFFER_SIZE, file)))
+        let forgotten = ForgottenFileHandle(ManuallyDrop::new(file));
+        Ok(Box::new(BufReader::with_capacity(
+            READ_BUFFER_SIZE,
+            forgotten,
+        )))
     }
 
     fn handle_file_path(&self) -> Result<Box<dyn Read + Send + 'static>, ReaderError> {
@@ -191,9 +195,10 @@ impl<'a, T: RecordParser<'a> + Send> RecordReaderBuilder<'a, T> {
 
     fn build_single_threaded(
         self,
-        readable: Box<dyn Read + 'a>,
+        readable: BufReader<Box<dyn SeekableRead>>,
     ) -> Result<RecordReader<'a, T>, ReaderError> {
         let flexible = self.flexible || self.flexible_default.is_some();
+
         let mut reader = csv::ReaderBuilder::new()
             .has_headers(self.has_headers)
             .delimiter(self.delimiter)

@@ -7,3 +7,4 @@ pkg/
 .env
 /benchmark/*.csv*
 profile.json
+flamegraph.svg

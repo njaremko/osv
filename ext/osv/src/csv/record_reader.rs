@@ -1,6 +1,7 @@
-use super::header_cache::StringCache;
 use super::parser::RecordParser;
+use super::{header_cache::StringCache, ruby_reader::SeekableRead};
 use magnus::{Error, Ruby};
+use std::io::BufReader;
 use std::{borrow::Cow, io::Read, thread};
 
 pub(crate) const READ_BUFFER_SIZE: usize = 16384;
@@ -11,7 +12,7 @@ pub struct RecordReader<'a, T: RecordParser<'a>> {
 
 enum ReaderImpl<'a, T: RecordParser<'a>> {
     SingleThreaded {
-        reader: csv::Reader<Box<dyn Read + 'a>>,
+        reader: csv::Reader<BufReader<Box<dyn SeekableRead>>>,
         headers: Vec<&'static str>,
         null_string: Option<String>,
         flexible_default: Option<Cow<'a, str>>,
@@ -48,7 +49,7 @@ impl<'a, T: RecordParser<'a>> RecordReader<'a, T> {
     }
 
     pub(crate) fn new_single_threaded(
-        reader: csv::Reader<Box<dyn Read + 'a>>,
+        reader: csv::Reader<BufReader<Box<dyn SeekableRead>>>,
         headers: Vec<&'static str>,
         null_string: Option<String>,
         flexible_default: Option<&'a str>,
@@ -73,7 +74,6 @@ impl<T: RecordParser<'static> + Send> RecordReader<'static, T> {
         buffer_size: usize,
         null_string: Option<String>,
         flexible_default: Option<&'static str>,
-        should_forget: bool,
     ) -> Self {
         let (sender, receiver) = kanal::bounded(buffer_size);
         let headers_for_thread = headers.clone();
@@ -91,10 +91,6 @@ impl<T: RecordParser<'static> + Send> RecordReader<'static, T> {
                 if sender.send(row).is_err() {
                     break;
                 }
-            }
-            if should_forget {
-                let file_to_forget = reader.into_inner();
-                std::mem::forget(file_to_forget);
             }
         });
 

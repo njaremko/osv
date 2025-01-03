@@ -9,5 +9,5 @@ bundle install
 echo "🔨 Compiling Rust extension..."
 bundle exec rake compile
 
-# Run the Ruby script under samply
-samply record bundle exec benchmark/ruby_profiling_script.rb
+# cargo install flamegraph
+sudo flamegraph -o flamegraph.svg -- bundle exec benchmark/ruby_profiling_script.rb
