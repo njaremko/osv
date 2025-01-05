@@ -19,7 +19,6 @@ pub fn parse_csv(
         delimiter,
         quote_char,
         null_string,
-        buffer_size,
         result_type,
         flexible,
         flexible_default,
@@ -38,7 +37,7 @@ pub fn parse_csv(
             delimiter,
             quote_char,
             null_string,
-            buffer_size,
+            buffer_size: 0,
             result_type,
             flexible,
             flexible_default: leaked_flexible_default.as_deref(),
@@ -62,10 +61,9 @@ pub fn parse_csv(
             .trim(trim)
             .delimiter(delimiter)
             .quote_char(quote_char)
-            .null_string(null_string)
-            .buffer(buffer_size);
+            .null_string(null_string);
 
-            Box::new(builder.build_threaded()?.map(CsvRecord::Map))
+            Box::new(builder.build()?.map(CsvRecord::Map))
         }
         "array" => Box::new(
             RecordReaderBuilder::<Vec<Option<CowValue<'static>>>>::new(ruby, to_read)
@@ -76,8 +74,7 @@ pub fn parse_csv(
                 .delimiter(delimiter)
                 .quote_char(quote_char)
                 .null_string(null_string)
-                .buffer(buffer_size)
-                .build_threaded()?
+                .build()?
                 .map(CsvRecord::Vec),
         ),
         _ => {

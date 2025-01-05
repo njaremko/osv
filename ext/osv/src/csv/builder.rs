@@ -17,8 +17,6 @@ use std::{
 
 use thiserror::Error;
 
-pub(crate) static BUFFER_CHANNEL_SIZE: usize = 1024;
-
 #[derive(Error, Debug)]
 pub enum ReaderError {
     #[error("Failed to get file descriptor: {0}")]
@@ -48,62 +46,20 @@ impl From<ReaderError> for MagnusError {
     }
 }
 
-pub struct RecordReaderBuilder<'a, T: RecordParser<'a> + Send> {
+pub struct RecordReaderBuilder<'a, T: RecordParser<'a>> {
     ruby: &'a Ruby,
     to_read: Value,
     has_headers: bool,
     delimiter: u8,
     quote_char: u8,
     null_string: Option<String>,
-    buffer: usize,
     flexible: bool,
     flexible_default: Option<&'a str>,
     trim: csv::Trim,
     _phantom: PhantomData<T>,
 }
 
-impl<T: RecordParser<'static> + Send + 'static> RecordReaderBuilder<'static, T> {
-    fn build_multi_threaded(
-        self,
-        readable: Box<dyn Read + Send + 'static>,
-    ) -> Result<RecordReader<'static, T>, ReaderError> {
-        let flexible = self.flexible || self.flexible_default.is_some();
-        let mut reader = csv::ReaderBuilder::new()
-            .has_headers(self.has_headers)
-            .delimiter(self.delimiter)
-            .quote(self.quote_char)
-            .flexible(flexible)
-            .trim(self.trim)
-            .from_reader(readable);
-
-        let headers = RecordReader::<T>::get_headers(self.ruby, &mut reader, self.has_headers)?;
-        let static_headers = StringCache::intern_many(&headers)?;
-
-        Ok(RecordReader::new_multi_threaded(
-            reader,
-            static_headers,
-            self.buffer,
-            self.null_string,
-            self.flexible_default,
-        ))
-    }
-
-    pub fn build_threaded(self) -> Result<RecordReader<'static, T>, ReaderError> {
-        if self.to_read.is_kind_of(self.ruby.class_io()) {
-            let readable = self.handle_file_descriptor()?;
-            self.build_multi_threaded(readable)
-        } else if self.to_read.is_kind_of(self.ruby.class_string()) {
-            let readable = self.handle_file_path()?;
-            self.build_multi_threaded(readable)
-        } else {
-            let readable = build_ruby_reader(self.ruby, self.to_read)?;
-            let buffered_reader = BufReader::with_capacity(READ_BUFFER_SIZE, readable);
-            self.build_single_threaded(buffered_reader)
-        }
-    }
-}
-
-impl<'a, T: RecordParser<'a> + Send> RecordReaderBuilder<'a, T> {
+impl<'a, T: RecordParser<'a>> RecordReaderBuilder<'a, T> {
     pub fn new(ruby: &'a Ruby, to_read: Value) -> Self {
         Self {
             ruby,
@@ -112,7 +68,6 @@ impl<'a, T: RecordParser<'a> + Send> RecordReaderBuilder<'a, T> {
             delimiter: b',',
             quote_char: b'"',
             null_string: None,
-            buffer: BUFFER_CHANNEL_SIZE,
             flexible: false,
             flexible_default: None,
             trim: csv::Trim::None,
@@ -140,11 +95,6 @@ impl<'a, T: RecordParser<'a> + Send> RecordReaderBuilder<'a, T> {
         self
     }
 
-    pub fn buffer(mut self, buffer: usize) -> Self {
-        self.buffer = buffer;
-        self
-    }
-
     pub fn flexible(mut self, flexible: bool) -> Self {
         self.flexible = flexible;
         self
@@ -160,7 +110,7 @@ impl<'a, T: RecordParser<'a> + Send> RecordReaderBuilder<'a, T> {
         self
     }
 
-    fn handle_file_descriptor(&self) -> Result<Box<dyn Read + Send + 'static>, ReaderError> {
+    fn handle_file_descriptor(&self) -> Result<Box<dyn SeekableRead>, ReaderError> {
         let raw_value = self.to_read.as_raw();
         let fd = std::panic::catch_unwind(|| unsafe { rb_sys::rb_io_descriptor(raw_value) })
             .map_err(|_| {
@@ -179,24 +129,33 @@ impl<'a, T: RecordParser<'a> + Send> RecordReaderBuilder<'a, T> {
         )))
     }
 
-    fn handle_file_path(&self) -> Result<Box<dyn Read + Send + 'static>, ReaderError> {
+    fn handle_file_path(&self) -> Result<Box<dyn SeekableRead>, ReaderError> {
         let path = self.to_read.to_r_string()?.to_string()?;
         let file = File::open(&path)?;
 
-        Ok(if path.ends_with(".gz") {
-            Box::new(GzDecoder::new(BufReader::with_capacity(
-                READ_BUFFER_SIZE,
-                file,
-            )))
+        if path.ends_with(".gz") {
+            // For gzipped files, we need to decompress them into memory first
+            // since GzDecoder doesn't support seeking
+            let mut decoder = GzDecoder::new(BufReader::with_capacity(READ_BUFFER_SIZE, file));
+            let mut contents = Vec::new();
+            decoder.read_to_end(&mut contents)?;
+            let cursor = std::io::Cursor::new(contents);
+            Ok(Box::new(BufReader::new(cursor)))
         } else {
-            Box::new(BufReader::with_capacity(READ_BUFFER_SIZE, file))
-        })
+            Ok(Box::new(BufReader::with_capacity(READ_BUFFER_SIZE, file)))
+        }
     }
 
-    fn build_single_threaded(
-        self,
-        readable: BufReader<Box<dyn SeekableRead>>,
-    ) -> Result<RecordReader<'a, T>, ReaderError> {
+    pub fn build(self) -> Result<RecordReader<'a, T>, ReaderError> {
+        let readable = if self.to_read.is_kind_of(self.ruby.class_io()) {
+            self.handle_file_descriptor()?
+        } else if self.to_read.is_kind_of(self.ruby.class_string()) {
+            self.handle_file_path()?
+        } else {
+            build_ruby_reader(self.ruby, self.to_read)?
+        };
+
+        let buffered_reader = BufReader::with_capacity(READ_BUFFER_SIZE, readable);
         let flexible = self.flexible || self.flexible_default.is_some();
 
         let mut reader = csv::ReaderBuilder::new()
@@ -205,12 +164,12 @@ impl<'a, T: RecordParser<'a> + Send> RecordReaderBuilder<'a, T> {
             .quote(self.quote_char)
             .flexible(flexible)
             .trim(self.trim)
-            .from_reader(readable);
+            .from_reader(buffered_reader);
 
         let headers = RecordReader::<T>::get_headers(self.ruby, &mut reader, self.has_headers)?;
         let static_headers = StringCache::intern_many(&headers)?;
 
-        Ok(RecordReader::new_single_threaded(
+        Ok(RecordReader::new(
             reader,
             static_headers,
             self.null_string,

@@ -4,8 +4,6 @@ use magnus::{
     Error, RString, Ruby, Symbol, Value,
 };
 
-use crate::csv::BUFFER_CHANNEL_SIZE;
-
 fn parse_string_or_symbol(ruby: &Ruby, value: Value) -> Result<Option<String>, Error> {
     if value.is_nil() {
         Ok(None)
@@ -34,7 +32,6 @@ pub struct ReadCsvArgs {
     pub delimiter: u8,
     pub quote_char: u8,
     pub null_string: Option<String>,
-    pub buffer_size: usize,
     pub result_type: String,
     pub flexible: bool,
     pub flexible_default: Option<String>,
@@ -107,7 +104,7 @@ pub fn parse_read_csv_args(ruby: &Ruby, args: &[Value]) -> Result<ReadCsvArgs, E
 
     let null_string = kwargs.optional.3.unwrap_or_default();
 
-    let buffer_size = kwargs.optional.4.unwrap_or(BUFFER_CHANNEL_SIZE);
+    // let buffer_size = kwargs.optional.4.unwrap_or(BUFFER_CHANNEL_SIZE);
 
     let result_type = match kwargs
         .optional
@@ -172,7 +169,6 @@ pub fn parse_read_csv_args(ruby: &Ruby, args: &[Value]) -> Result<ReadCsvArgs, E
         delimiter,
         quote_char,
         null_string,
-        buffer_size,
         result_type,
         flexible,
         flexible_default,
