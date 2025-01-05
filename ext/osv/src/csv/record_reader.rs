@@ -2,23 +2,33 @@ use super::header_cache::StringCacheKey;
 use super::parser::RecordParser;
 use super::{header_cache::StringCache, ruby_reader::SeekableRead};
 use magnus::{Error, Ruby};
-use std::borrow::Cow;
-use std::io::BufReader;
-use std::io::Read;
-use std::marker::PhantomData;
+use std::io::{BufReader, Read};
 
+/// Size of the internal buffer used for reading CSV records
 pub(crate) const READ_BUFFER_SIZE: usize = 16384;
 
-pub struct RecordReader<'a, T: RecordParser<'a>> {
+/// A reader that processes CSV records using a specified parser.
+///
+/// This struct implements Iterator to provide a streaming interface for CSV records.
+pub struct RecordReader<T: RecordParser<'static>> {
     reader: csv::Reader<BufReader<Box<dyn SeekableRead>>>,
     headers: Vec<StringCacheKey>,
-    null_string: Option<String>,
-    flexible_default: Option<Cow<'a, str>>,
+    null_string: Option<&'static str>,
+    flexible_default: Option<String>,
     string_record: csv::StringRecord,
-    _phantom: PhantomData<T>,
+    parser: std::marker::PhantomData<T>,
 }
 
-impl<'a, T: RecordParser<'a>> RecordReader<'a, T> {
+impl<T: RecordParser<'static>> RecordReader<T> {
+    /// Reads and processes headers from a CSV reader.
+    ///
+    /// # Arguments
+    /// * `ruby` - Ruby VM context for error handling
+    /// * `reader` - CSV reader instance
+    /// * `has_headers` - Whether the CSV file contains headers
+    ///
+    /// # Returns
+    /// A vector of header strings or generated column names if `has_headers` is false
     #[inline]
     pub(crate) fn get_headers(
         ruby: &Ruby,
@@ -32,60 +42,67 @@ impl<'a, T: RecordParser<'a>> RecordReader<'a, T> {
             )
         })?;
 
-        let mut headers = Vec::with_capacity(first_row.len());
-        if has_headers {
-            headers.extend(first_row.iter().map(String::from));
+        Ok(if has_headers {
+            first_row.iter().map(String::from).collect()
         } else {
-            headers.extend((0..first_row.len()).map(|i| format!("c{i}")));
-        }
-        Ok(headers)
+            (0..first_row.len()).map(|i| format!("c{i}")).collect()
+        })
     }
 
+    /// Creates a new RecordReader instance.
     pub(crate) fn new(
         reader: csv::Reader<BufReader<Box<dyn SeekableRead>>>,
         headers: Vec<StringCacheKey>,
-        null_string: Option<String>,
-        flexible_default: Option<&'a str>,
+        null_string: Option<&'static str>,
+        flexible_default: Option<String>,
     ) -> Self {
         let headers_len = headers.len();
         Self {
             reader,
             headers,
             null_string,
-            flexible_default: flexible_default.map(Cow::Borrowed),
+            flexible_default,
             string_record: csv::StringRecord::with_capacity(READ_BUFFER_SIZE, headers_len),
-            _phantom: PhantomData,
+            parser: std::marker::PhantomData,
+        }
+    }
+
+    /// Attempts to read the next record, returning any errors encountered.
+    fn try_next(&mut self) -> csv::Result<Option<T::Output>> {
+        match self.reader.read_record(&mut self.string_record)? {
+            true => Ok(Some(T::parse(
+                &self.headers,
+                &self.string_record,
+                self.null_string,
+                self.flexible_default
+                    .as_ref()
+                    .map(|s| std::borrow::Cow::Owned(s.clone())),
+            ))),
+            false => Ok(None),
         }
     }
 }
 
-impl<'a, T: RecordParser<'a>> Iterator for RecordReader<'a, T> {
+impl<T: RecordParser<'static>> Iterator for RecordReader<T> {
     type Item = T::Output;
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        match self.reader.read_record(&mut self.string_record) {
-            Ok(true) => Some(T::parse(
-                &self.headers,
-                &self.string_record,
-                self.null_string.as_deref(),
-                self.flexible_default.clone(),
-            )),
-            Ok(false) => None,
-            Err(_e) => None,
-        }
+        // Note: We intentionally swallow errors here to maintain Iterator contract.
+        // Errors can be handled by using try_next() directly if needed.
+        self.try_next().ok().flatten()
     }
 
     #[inline]
     fn size_hint(&self) -> (usize, Option<usize>) {
-        // We can't know the exact size without reading the whole file
-        (0, None)
+        (0, None) // Cannot determine size without reading entire file
     }
 }
 
-impl<'a, T: RecordParser<'a>> Drop for RecordReader<'a, T> {
+impl<T: RecordParser<'static>> Drop for RecordReader<T> {
     #[inline]
     fn drop(&mut self) {
+        // Intentionally ignore errors during cleanup as there's no meaningful way to handle them
         let _ = StringCache::clear(&self.headers);
     }
 }

@@ -8,6 +8,7 @@ use super::{
 use flate2::read::GzDecoder;
 use magnus::{rb_sys::AsRawValue, value::ReprValue, Error as MagnusError, Ruby, Value};
 use std::{
+    fmt::Debug,
     fs::File,
     io::{self, BufReader, Read},
     marker::PhantomData,
@@ -17,12 +18,13 @@ use std::{
 
 use thiserror::Error;
 
+/// Errors that can occur when building a RecordReader
 #[derive(Error, Debug)]
 pub enum ReaderError {
     #[error("Failed to get file descriptor: {0}")]
     FileDescriptor(String),
-    #[error("Invalid file descriptor")]
-    InvalidFileDescriptor,
+    #[error("Invalid file descriptor: {0}")]
+    InvalidFileDescriptor(i32),
     #[error("Failed to open file: {0}")]
     FileOpen(#[from] io::Error),
     #[error("Failed to intern headers: {0}")]
@@ -46,21 +48,26 @@ impl From<ReaderError> for MagnusError {
     }
 }
 
-pub struct RecordReaderBuilder<'a, T: RecordParser<'a>> {
-    ruby: &'a Ruby,
+/// Builder for configuring and creating a RecordReader instance.
+///
+/// This struct provides a fluent interface for setting up CSV parsing options
+/// and creating a RecordReader with the specified configuration.
+pub struct RecordReaderBuilder<T: RecordParser<'static>> {
+    ruby: Ruby,
     to_read: Value,
     has_headers: bool,
     delimiter: u8,
     quote_char: u8,
-    null_string: Option<String>,
+    null_string: Option<&'static str>,
     flexible: bool,
-    flexible_default: Option<&'a str>,
+    flexible_default: Option<String>,
     trim: csv::Trim,
     _phantom: PhantomData<T>,
 }
 
-impl<'a, T: RecordParser<'a>> RecordReaderBuilder<'a, T> {
-    pub fn new(ruby: &'a Ruby, to_read: Value) -> Self {
+impl<T: RecordParser<'static>> RecordReaderBuilder<T> {
+    /// Creates a new builder instance with default settings.
+    pub fn new(ruby: Ruby, to_read: Value) -> Self {
         Self {
             ruby,
             to_read,
@@ -75,60 +82,71 @@ impl<'a, T: RecordParser<'a>> RecordReaderBuilder<'a, T> {
         }
     }
 
+    /// Sets whether the CSV file has headers.
+    #[must_use]
     pub fn has_headers(mut self, has_headers: bool) -> Self {
         self.has_headers = has_headers;
         self
     }
 
+    /// Sets the delimiter character for the CSV.
+    #[must_use]
     pub fn delimiter(mut self, delimiter: u8) -> Self {
         self.delimiter = delimiter;
         self
     }
 
+    /// Sets the quote character for the CSV.
+    #[must_use]
     pub fn quote_char(mut self, quote_char: u8) -> Self {
         self.quote_char = quote_char;
         self
     }
 
-    pub fn null_string(mut self, null_string: Option<String>) -> Self {
+    /// Sets the string that should be interpreted as null.
+    #[must_use]
+    pub fn null_string(mut self, null_string: Option<&'static str>) -> Self {
         self.null_string = null_string;
         self
     }
 
+    /// Sets whether the reader should be flexible with field counts.
+    #[must_use]
     pub fn flexible(mut self, flexible: bool) -> Self {
         self.flexible = flexible;
         self
     }
 
-    pub fn flexible_default(mut self, flexible_default: Option<&'a str>) -> Self {
+    /// Sets the default value for missing fields when in flexible mode.
+    #[must_use]
+    pub fn flexible_default(mut self, flexible_default: Option<String>) -> Self {
         self.flexible_default = flexible_default;
         self
     }
 
+    /// Sets the trimming mode for fields.
+    #[must_use]
     pub fn trim(mut self, trim: csv::Trim) -> Self {
         self.trim = trim;
         self
     }
 
+    /// Handles reading from a file descriptor.
     fn handle_file_descriptor(&self) -> Result<Box<dyn SeekableRead>, ReaderError> {
         let raw_value = self.to_read.as_raw();
         let fd = std::panic::catch_unwind(|| unsafe { rb_sys::rb_io_descriptor(raw_value) })
-            .map_err(|_| {
-                ReaderError::FileDescriptor("Failed to get file descriptor".to_string())
-            })?;
+            .map_err(|e| ReaderError::FileDescriptor(format!("{:?}", e)))?;
 
         if fd < 0 {
-            return Err(ReaderError::InvalidFileDescriptor);
+            return Err(ReaderError::InvalidFileDescriptor(fd));
         }
 
         let file = unsafe { File::from_raw_fd(fd) };
         let forgotten = ForgottenFileHandle(ManuallyDrop::new(file));
-        Ok(Box::new(BufReader::with_capacity(
-            READ_BUFFER_SIZE,
-            forgotten,
-        )))
+        Ok(Box::new(forgotten))
     }
 
+    /// Handles reading from a file path.
     fn handle_file_path(&self) -> Result<Box<dyn SeekableRead>, ReaderError> {
         let path = self.to_read.to_r_string()?.to_string()?;
         let file = File::open(&path)?;
@@ -139,24 +157,24 @@ impl<'a, T: RecordParser<'a>> RecordReaderBuilder<'a, T> {
             let mut decoder = GzDecoder::new(BufReader::with_capacity(READ_BUFFER_SIZE, file));
             let mut contents = Vec::new();
             decoder.read_to_end(&mut contents)?;
-            let cursor = std::io::Cursor::new(contents);
-            Ok(Box::new(BufReader::new(cursor)))
+            Ok(Box::new(std::io::Cursor::new(contents)))
         } else {
-            Ok(Box::new(BufReader::with_capacity(READ_BUFFER_SIZE, file)))
+            Ok(Box::new(file))
         }
     }
 
-    pub fn build(self) -> Result<RecordReader<'a, T>, ReaderError> {
+    /// Builds the RecordReader with the configured options.
+    pub fn build(self) -> Result<RecordReader<T>, ReaderError> {
         let readable = if self.to_read.is_kind_of(self.ruby.class_io()) {
             self.handle_file_descriptor()?
         } else if self.to_read.is_kind_of(self.ruby.class_string()) {
             self.handle_file_path()?
         } else {
-            build_ruby_reader(self.ruby, self.to_read)?
+            build_ruby_reader(&self.ruby, self.to_read)?
         };
 
-        let buffered_reader = BufReader::with_capacity(READ_BUFFER_SIZE, readable);
         let flexible = self.flexible || self.flexible_default.is_some();
+        let reader = BufReader::with_capacity(READ_BUFFER_SIZE, readable);
 
         let mut reader = csv::ReaderBuilder::new()
             .has_headers(self.has_headers)
@@ -164,9 +182,9 @@ impl<'a, T: RecordParser<'a>> RecordReaderBuilder<'a, T> {
             .quote(self.quote_char)
             .flexible(flexible)
             .trim(self.trim)
-            .from_reader(buffered_reader);
+            .from_reader(reader);
 
-        let headers = RecordReader::<T>::get_headers(self.ruby, &mut reader, self.has_headers)?;
+        let headers = RecordReader::<T>::get_headers(&self.ruby, &mut reader, self.has_headers)?;
         let static_headers = StringCache::intern_many(&headers)?;
 
         Ok(RecordReader::new(

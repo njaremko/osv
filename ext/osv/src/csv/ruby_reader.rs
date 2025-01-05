@@ -6,6 +6,8 @@ use std::fs::File;
 use std::io::{self, BufReader, Read, Seek, SeekFrom, Write};
 use std::sync::OnceLock;
 
+use super::ForgottenFileHandle;
+
 static STRING_IO_CLASS: OnceLock<Opaque<RClass>> = OnceLock::new();
 
 /// A reader that can handle various Ruby input types (String, StringIO, IO-like objects)
@@ -20,6 +22,8 @@ impl SeekableRead for RubyReader<Value> {}
 impl SeekableRead for RubyReader<RString> {}
 impl SeekableRead for File {}
 impl<T: Read + Seek> SeekableRead for BufReader<T> {}
+impl SeekableRead for std::io::Cursor<Vec<u8>> {}
+impl SeekableRead for ForgottenFileHandle {}
 
 pub fn build_ruby_reader(
     ruby: &Ruby,
