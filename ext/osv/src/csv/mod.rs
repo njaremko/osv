@@ -8,6 +8,6 @@ mod ruby_reader;
 
 pub use builder::RecordReaderBuilder;
 pub use header_cache::StringCacheKey;
-pub use record::CowValue;
+pub use record::CowStr;
 pub use record::CsvRecord;
 pub use ruby_integration::*;

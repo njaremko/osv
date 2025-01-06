@@ -2,6 +2,7 @@ use super::header_cache::StringCacheKey;
 use super::parser::RecordParser;
 use super::{header_cache::StringCache, ruby_reader::SeekableRead};
 use magnus::{Error, Ruby};
+use std::borrow::Cow;
 use std::io::{BufReader, Read};
 
 /// Size of the internal buffer used for reading CSV records
@@ -10,16 +11,16 @@ pub(crate) const READ_BUFFER_SIZE: usize = 16384;
 /// A reader that processes CSV records using a specified parser.
 ///
 /// This struct implements Iterator to provide a streaming interface for CSV records.
-pub struct RecordReader<T: RecordParser<'static>> {
+pub struct RecordReader<'a, T: RecordParser<'a>> {
     reader: csv::Reader<BufReader<Box<dyn SeekableRead>>>,
     headers: Vec<StringCacheKey>,
-    null_string: Option<&'static str>,
-    flexible_default: Option<&'static str>,
+    null_string: Option<Cow<'a, str>>,
+    flexible_default: Option<Cow<'a, str>>,
     string_record: csv::StringRecord,
     parser: std::marker::PhantomData<T>,
 }
 
-impl<T: RecordParser<'static>> RecordReader<T> {
+impl<'a, T: RecordParser<'a>> RecordReader<'a, T> {
     /// Reads and processes headers from a CSV reader.
     ///
     /// # Arguments
@@ -53,8 +54,8 @@ impl<T: RecordParser<'static>> RecordReader<T> {
     pub(crate) fn new(
         reader: csv::Reader<BufReader<Box<dyn SeekableRead>>>,
         headers: Vec<StringCacheKey>,
-        null_string: Option<&'static str>,
-        flexible_default: Option<&'static str>,
+        null_string: Option<Cow<'a, str>>,
+        flexible_default: Option<Cow<'a, str>>,
     ) -> Self {
         let headers_len = headers.len();
         Self {
@@ -73,15 +74,15 @@ impl<T: RecordParser<'static>> RecordReader<T> {
             true => Ok(Some(T::parse(
                 &self.headers,
                 &self.string_record,
-                self.null_string,
-                self.flexible_default.map(|s| std::borrow::Cow::Borrowed(s)),
+                self.null_string.clone(),
+                self.flexible_default.clone(),
             ))),
             false => Ok(None),
         }
     }
 }
 
-impl<T: RecordParser<'static>> Iterator for RecordReader<T> {
+impl<'a, T: RecordParser<'a>> Iterator for RecordReader<'a, T> {
     type Item = T::Output;
 
     #[inline]
@@ -97,7 +98,7 @@ impl<T: RecordParser<'static>> Iterator for RecordReader<T> {
     }
 }
 
-impl<T: RecordParser<'static>> Drop for RecordReader<T> {
+impl<'a, T: RecordParser<'a>> Drop for RecordReader<'a, T> {
     #[inline]
     fn drop(&mut self) {
         // Intentionally ignore errors during cleanup as there's no meaningful way to handle them

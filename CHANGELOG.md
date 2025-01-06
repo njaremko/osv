@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.17
+
+- Remove multi-threaded parsing. It was a bad idea. Performance is better without it. Code is simpler.
+
 ## 0.3.16
 
 - Optimize hash construction by interning key strings

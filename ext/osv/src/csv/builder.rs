@@ -8,6 +8,7 @@ use super::{
 use flate2::read::GzDecoder;
 use magnus::{rb_sys::AsRawValue, value::ReprValue, Error as MagnusError, RString, Ruby, Value};
 use std::{
+    borrow::Cow,
     fmt::Debug,
     fs::File,
     io::{self, BufReader, Read},
@@ -56,7 +57,7 @@ impl From<ReaderError> for MagnusError {
 ///
 /// This struct provides a fluent interface for setting up CSV parsing options
 /// and creating a RecordReader with the specified configuration.
-pub struct RecordReaderBuilder<T: RecordParser<'static>> {
+pub struct RecordReaderBuilder<'a, T: RecordParser<'a>> {
     ruby: Ruby,
     to_read: Value,
     has_headers: bool,
@@ -67,9 +68,10 @@ pub struct RecordReaderBuilder<T: RecordParser<'static>> {
     flexible_default: Option<String>,
     trim: csv::Trim,
     _phantom: PhantomData<T>,
+    _phantom_a: PhantomData<&'a ()>,
 }
 
-impl<T: RecordParser<'static>> RecordReaderBuilder<T> {
+impl<'a, T: RecordParser<'a>> RecordReaderBuilder<'a, T> {
     /// Creates a new builder instance with default settings.
     pub fn new(ruby: Ruby, to_read: Value) -> Self {
         Self {
@@ -83,6 +85,7 @@ impl<T: RecordParser<'static>> RecordReaderBuilder<T> {
             flexible_default: None,
             trim: csv::Trim::None,
             _phantom: PhantomData,
+            _phantom_a: PhantomData,
         }
     }
 
@@ -168,7 +171,7 @@ impl<T: RecordParser<'static>> RecordReaderBuilder<T> {
     }
 
     /// Builds the RecordReader with the configured options.
-    pub fn build(self) -> Result<RecordReader<T>, ReaderError> {
+    pub fn build(self) -> Result<RecordReader<'a, T>, ReaderError> {
         let readable = if self.to_read.is_kind_of(self.ruby.class_io()) {
             self.handle_file_descriptor()?
         } else if self.to_read.is_kind_of(self.ruby.class_string()) {
@@ -190,8 +193,9 @@ impl<T: RecordParser<'static>> RecordReaderBuilder<T> {
 
         let headers = RecordReader::<T>::get_headers(&self.ruby, &mut reader, self.has_headers)?;
         let static_headers = StringCache::intern_many(&headers)?;
-        // Start of Selection
-        let flexible_default: Option<&'static str> = self
+
+        // We intern both of these to get static string references we can reuse throughout the parser.
+        let flexible_default = self
             .flexible_default
             .map(|s| {
                 RString::new(&s)
@@ -199,8 +203,10 @@ impl<T: RecordParser<'static>> RecordReaderBuilder<T> {
                     .as_str()
                     .map_err(|e| ReaderError::InvalidFlexibleDefault(format!("{:?}", e)))
             })
-            .transpose()?;
-        let null_string: Option<&'static str> = self
+            .transpose()?
+            .map(|s| Cow::Borrowed(s));
+
+        let null_string = self
             .null_string
             .map(|s| {
                 RString::new(&s)
@@ -208,7 +214,8 @@ impl<T: RecordParser<'static>> RecordReaderBuilder<T> {
                     .as_str()
                     .map_err(|e| ReaderError::InvalidNullString(format!("{:?}", e)))
             })
-            .transpose()?;
+            .transpose()?
+            .map(|s| Cow::Borrowed(s));
 
         Ok(RecordReader::new(
             reader,

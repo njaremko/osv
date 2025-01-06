@@ -3,21 +3,21 @@ use std::collections::HashMap;
 use std::hash::BuildHasher;
 
 use super::header_cache::StringCacheKey;
-use super::CowValue;
+use super::CowStr;
 
 pub trait RecordParser<'a> {
-    type Output: 'a;
+    type Output;
 
     fn parse(
         headers: &[StringCacheKey],
         record: &csv::StringRecord,
-        null_string: Option<&'a str>,
+        null_string: Option<Cow<'a, str>>,
         flexible_default: Option<Cow<'a, str>>,
     ) -> Self::Output;
 }
 
-impl<'a, S: BuildHasher + Default + 'a> RecordParser<'a>
-    for HashMap<StringCacheKey, Option<CowValue<'a>>, S>
+impl<'a, S: BuildHasher + Default> RecordParser<'a>
+    for HashMap<StringCacheKey, Option<CowStr<'a>>, S>
 {
     type Output = Self;
 
@@ -25,23 +25,23 @@ impl<'a, S: BuildHasher + Default + 'a> RecordParser<'a>
     fn parse(
         headers: &[StringCacheKey],
         record: &csv::StringRecord,
-        null_string: Option<&str>,
+        null_string: Option<Cow<'a, str>>,
         flexible_default: Option<Cow<'a, str>>,
     ) -> Self::Output {
         let mut map = HashMap::with_capacity_and_hasher(headers.len(), S::default());
 
         let shared_empty = Cow::Borrowed("");
-        let shared_default = flexible_default.map(CowValue);
+        let shared_default = flexible_default.map(CowStr);
         headers.iter().enumerate().for_each(|(i, ref header)| {
             let value = record.get(i).map_or_else(
                 || shared_default.clone(),
                 |field| {
-                    if null_string == Some(field) {
+                    if null_string.as_deref() == Some(field) {
                         None
                     } else if field.is_empty() {
-                        Some(CowValue(shared_empty.clone()))
+                        Some(CowStr(shared_empty.clone()))
                     } else {
-                        Some(CowValue(Cow::Owned(field.to_string())))
+                        Some(CowStr(Cow::Owned(field.to_string())))
                     }
                 },
             );
@@ -51,29 +51,29 @@ impl<'a, S: BuildHasher + Default + 'a> RecordParser<'a>
     }
 }
 
-impl<'a> RecordParser<'a> for Vec<Option<CowValue<'a>>> {
+impl<'a> RecordParser<'a> for Vec<Option<CowStr<'a>>> {
     type Output = Self;
 
     #[inline]
     fn parse(
         headers: &[StringCacheKey],
         record: &csv::StringRecord,
-        null_string: Option<&str>,
+        null_string: Option<Cow<'a, str>>,
         flexible_default: Option<Cow<'a, str>>,
     ) -> Self::Output {
         let target_len = headers.len();
         let mut vec = Vec::with_capacity(target_len);
 
         let shared_empty = Cow::Borrowed("");
-        let shared_default = flexible_default.map(CowValue);
+        let shared_default = flexible_default.map(CowStr);
 
         for field in record.iter() {
-            let value = if Some(field) == null_string {
+            let value = if Some(field) == null_string.as_deref() {
                 None
             } else if field.is_empty() {
-                Some(CowValue(shared_empty.clone()))
+                Some(CowStr(shared_empty.clone()))
             } else {
-                Some(CowValue(Cow::Owned(field.to_string())))
+                Some(CowStr(Cow::Owned(field.to_string())))
             };
             vec.push(value);
         }
