@@ -32,10 +32,9 @@ struct EnumeratorArgs {
     delimiter: u8,
     quote_char: u8,
     null_string: Option<String>,
-    buffer_size: usize,
     result_type: String,
     flexible: bool,
-    flexible_default: Option<&'static str>,
+    flexible_default: Option<String>,
     trim: Option<String>,
 }
 
@@ -48,7 +47,7 @@ pub fn parse_csv(
     rb_self: Value,
     args: &[Value],
 ) -> Result<Yield<Box<dyn Iterator<Item = CsvRecord<'static, RandomState>>>>, Error> {
-    // SAFETY: We're in a Ruby callback, so Ruby runtime is guaranteed to be initialized
+    //  SAFETY: We're in a Ruby callback, so Ruby runtime is guaranteed to be initialized
     let ruby = unsafe { Ruby::get_unchecked() };
 
     let ReadCsvArgs {
@@ -63,10 +62,6 @@ pub fn parse_csv(
         trim,
     } = parse_read_csv_args(&ruby, args)?;
 
-    // Convert flexible_default to static lifetime
-    // SAFETY: This memory is intentionally leaked as it needs to live for the duration of the Ruby process
-    let flexible_default = Box::leak(Box::new(flexible_default));
-
     if !ruby.block_given() {
         return create_enumerator(EnumeratorArgs {
             rb_self,
@@ -75,10 +70,9 @@ pub fn parse_csv(
             delimiter,
             quote_char,
             null_string,
-            buffer_size: 0,
-            result_type: result_type.clone(),
+            result_type: result_type,
             flexible,
-            flexible_default: flexible_default.as_deref(),
+            flexible_default: flexible_default,
             trim: match trim {
                 Trim::All => Some("all".to_string()),
                 Trim::Headers => Some("headers".to_string()),
@@ -87,10 +81,6 @@ pub fn parse_csv(
             },
         });
     }
-
-    // Convert null_string to static lifetime if present
-    // SAFETY: This memory is intentionally leaked as it needs to live for the duration of the Ruby process
-    let null_string = null_string.map(|s| Box::leak(Box::new(s)) as &'static str);
 
     let result_type = ResultType::from_str(&result_type).ok_or_else(|| {
         Error::new(
@@ -106,7 +96,7 @@ pub fn parse_csv(
             >::new(ruby, to_read)
             .has_headers(has_headers)
             .flexible(flexible)
-            .flexible_default(flexible_default.clone())
+            .flexible_default(flexible_default)
             .trim(trim)
             .delimiter(delimiter)
             .quote_char(quote_char)
@@ -118,7 +108,7 @@ pub fn parse_csv(
             let builder = RecordReaderBuilder::<Vec<Option<CowValue<'static>>>>::new(ruby, to_read)
                 .has_headers(has_headers)
                 .flexible(flexible)
-                .flexible_default(flexible_default.clone())
+                .flexible_default(flexible_default)
                 .trim(trim)
                 .delimiter(delimiter)
                 .quote_char(quote_char)
@@ -147,7 +137,6 @@ fn create_enumerator(
         String::from_utf8(vec![args.quote_char]).unwrap(),
     )?;
     kwargs.aset(Symbol::new("nil_string"), args.null_string)?;
-    kwargs.aset(Symbol::new("buffer_size"), args.buffer_size)?;
     kwargs.aset(Symbol::new("result_type"), Symbol::new(args.result_type))?;
     kwargs.aset(Symbol::new("flexible"), args.flexible)?;
     kwargs.aset(Symbol::new("flexible_default"), args.flexible_default)?;

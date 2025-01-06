@@ -14,7 +14,7 @@ pub struct RecordReader<T: RecordParser<'static>> {
     reader: csv::Reader<BufReader<Box<dyn SeekableRead>>>,
     headers: Vec<StringCacheKey>,
     null_string: Option<&'static str>,
-    flexible_default: Option<String>,
+    flexible_default: Option<&'static str>,
     string_record: csv::StringRecord,
     parser: std::marker::PhantomData<T>,
 }
@@ -54,7 +54,7 @@ impl<T: RecordParser<'static>> RecordReader<T> {
         reader: csv::Reader<BufReader<Box<dyn SeekableRead>>>,
         headers: Vec<StringCacheKey>,
         null_string: Option<&'static str>,
-        flexible_default: Option<String>,
+        flexible_default: Option<&'static str>,
     ) -> Self {
         let headers_len = headers.len();
         Self {
@@ -74,9 +74,7 @@ impl<T: RecordParser<'static>> RecordReader<T> {
                 &self.headers,
                 &self.string_record,
                 self.null_string,
-                self.flexible_default
-                    .as_ref()
-                    .map(|s| std::borrow::Cow::Owned(s.clone())),
+                self.flexible_default.map(|s| std::borrow::Cow::Borrowed(s)),
             ))),
             false => Ok(None),
         }

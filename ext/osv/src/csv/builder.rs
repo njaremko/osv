@@ -6,7 +6,7 @@ use super::{
     ForgottenFileHandle,
 };
 use flate2::read::GzDecoder;
-use magnus::{rb_sys::AsRawValue, value::ReprValue, Error as MagnusError, Ruby, Value};
+use magnus::{rb_sys::AsRawValue, value::ReprValue, Error as MagnusError, RString, Ruby, Value};
 use std::{
     fmt::Debug,
     fs::File,
@@ -29,6 +29,10 @@ pub enum ReaderError {
     FileOpen(#[from] io::Error),
     #[error("Failed to intern headers: {0}")]
     HeaderIntern(#[from] CacheError),
+    #[error("Invalid flexible default value: {0}")]
+    InvalidFlexibleDefault(String),
+    #[error("Invalid null string value: {0}")]
+    InvalidNullString(String),
     #[error("Ruby error: {0}")]
     Ruby(String),
 }
@@ -58,7 +62,7 @@ pub struct RecordReaderBuilder<T: RecordParser<'static>> {
     has_headers: bool,
     delimiter: u8,
     quote_char: u8,
-    null_string: Option<&'static str>,
+    null_string: Option<String>,
     flexible: bool,
     flexible_default: Option<String>,
     trim: csv::Trim,
@@ -105,7 +109,7 @@ impl<T: RecordParser<'static>> RecordReaderBuilder<T> {
 
     /// Sets the string that should be interpreted as null.
     #[must_use]
-    pub fn null_string(mut self, null_string: Option<&'static str>) -> Self {
+    pub fn null_string(mut self, null_string: Option<String>) -> Self {
         self.null_string = null_string;
         self
     }
@@ -186,12 +190,31 @@ impl<T: RecordParser<'static>> RecordReaderBuilder<T> {
 
         let headers = RecordReader::<T>::get_headers(&self.ruby, &mut reader, self.has_headers)?;
         let static_headers = StringCache::intern_many(&headers)?;
+        // Start of Selection
+        let flexible_default: Option<&'static str> = self
+            .flexible_default
+            .map(|s| {
+                RString::new(&s)
+                    .to_interned_str()
+                    .as_str()
+                    .map_err(|e| ReaderError::InvalidFlexibleDefault(format!("{:?}", e)))
+            })
+            .transpose()?;
+        let null_string: Option<&'static str> = self
+            .null_string
+            .map(|s| {
+                RString::new(&s)
+                    .to_interned_str()
+                    .as_str()
+                    .map_err(|e| ReaderError::InvalidNullString(format!("{:?}", e)))
+            })
+            .transpose()?;
 
         Ok(RecordReader::new(
             reader,
             static_headers,
-            self.null_string,
-            self.flexible_default,
+            null_string,
+            flexible_default,
         ))
     }
 }
