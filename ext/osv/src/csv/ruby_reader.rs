@@ -2,8 +2,11 @@ use magnus::{
     value::{Opaque, ReprValue},
     RClass, RString, Ruby, Value,
 };
-use std::io::{self, Read, Seek, SeekFrom, Write};
+use std::fs::File;
+use std::io::{self, BufReader, Read, Seek, SeekFrom, Write};
 use std::sync::OnceLock;
+
+use super::ForgottenFileHandle;
 
 static STRING_IO_CLASS: OnceLock<Opaque<RClass>> = OnceLock::new();
 
@@ -17,6 +20,10 @@ pub struct RubyReader<T> {
 pub trait SeekableRead: std::io::Read + Seek {}
 impl SeekableRead for RubyReader<Value> {}
 impl SeekableRead for RubyReader<RString> {}
+impl SeekableRead for File {}
+impl<T: Read + Seek> SeekableRead for BufReader<T> {}
+impl SeekableRead for std::io::Cursor<Vec<u8>> {}
+impl SeekableRead for ForgottenFileHandle {}
 
 pub fn build_ruby_reader(
     ruby: &Ruby,

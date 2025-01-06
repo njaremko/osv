@@ -7,8 +7,7 @@ mod ruby_integration;
 mod ruby_reader;
 
 pub use builder::RecordReaderBuilder;
-pub(crate) use builder::BUFFER_CHANNEL_SIZE;
 pub use header_cache::StringCacheKey;
-pub use record::CowValue;
+pub use record::CowStr;
 pub use record::CsvRecord;
 pub use ruby_integration::*;

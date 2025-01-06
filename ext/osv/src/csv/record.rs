@@ -6,8 +6,8 @@ use super::StringCacheKey;
 
 #[derive(Debug)]
 pub enum CsvRecord<'a, S: BuildHasher + Default> {
-    Vec(Vec<Option<CowValue<'a>>>),
-    Map(HashMap<StringCacheKey, Option<CowValue<'a>>, S>),
+    Vec(Vec<Option<CowStr<'a>>>),
+    Map(HashMap<StringCacheKey, Option<CowStr<'a>>, S>),
 }
 
 impl<S: BuildHasher + Default> IntoValue for CsvRecord<'_, S> {
@@ -46,9 +46,9 @@ impl<S: BuildHasher + Default> IntoValue for CsvRecord<'_, S> {
 }
 
 #[derive(Debug, Clone)]
-pub struct CowValue<'a>(pub Cow<'a, str>);
+pub struct CowStr<'a>(pub Cow<'a, str>);
 
-impl IntoValue for CowValue<'_> {
+impl IntoValue for CowStr<'_> {
     fn into_value_with(self, handle: &Ruby) -> Value {
         self.0.into_value_with(handle)
     }

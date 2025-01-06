@@ -1,4 +1,4 @@
-use crate::csv::{CowValue, CsvRecord, RecordReaderBuilder, StringCacheKey};
+use crate::csv::{CowStr, CsvRecord, RecordReaderBuilder, StringCacheKey};
 use crate::utils::*;
 use ahash::RandomState;
 use csv::Trim;
@@ -6,12 +6,49 @@ use magnus::value::ReprValue;
 use magnus::{block::Yield, Error, KwArgs, RHash, Ruby, Symbol, Value};
 use std::collections::HashMap;
 
+/// Valid result types for CSV parsing
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ResultType {
+    Hash,
+    Array,
+}
+
+impl ResultType {
+    fn from_str(s: &str) -> Option<Self> {
+        match s {
+            "hash" => Some(Self::Hash),
+            "array" => Some(Self::Array),
+            _ => None,
+        }
+    }
+}
+
+/// Arguments for creating an enumerator
+#[derive(Debug)]
+struct EnumeratorArgs {
+    rb_self: Value,
+    to_read: Value,
+    has_headers: bool,
+    delimiter: u8,
+    quote_char: u8,
+    null_string: Option<String>,
+    result_type: String,
+    flexible: bool,
+    flexible_default: Option<String>,
+    trim: Option<String>,
+}
+
+/// Parses a CSV file with the given configuration.
+///
+/// # Safety
+/// This function uses unsafe code to get the Ruby runtime and leak memory for static references.
+/// This is necessary for Ruby integration but should be used with caution.
 pub fn parse_csv(
     rb_self: Value,
     args: &[Value],
 ) -> Result<Yield<Box<dyn Iterator<Item = CsvRecord<'static, RandomState>>>>, Error> {
-    let original = unsafe { Ruby::get_unchecked() };
-    let ruby: &'static Ruby = Box::leak(Box::new(original));
+    //  SAFETY: We're in a Ruby callback, so Ruby runtime is guaranteed to be initialized
+    let ruby = unsafe { Ruby::get_unchecked() };
 
     let ReadCsvArgs {
         to_read,
@@ -19,16 +56,11 @@ pub fn parse_csv(
         delimiter,
         quote_char,
         null_string,
-        buffer_size,
         result_type,
         flexible,
         flexible_default,
         trim,
-    } = parse_read_csv_args(ruby, args)?;
-
-    let flexible_default: &'static Option<String> = Box::leak(Box::new(flexible_default));
-    let leaked_flexible_default: &'static Option<&str> =
-        Box::leak(Box::new(flexible_default.as_deref()));
+    } = parse_read_csv_args(&ruby, args)?;
 
     if !ruby.block_given() {
         return create_enumerator(EnumeratorArgs {
@@ -38,10 +70,9 @@ pub fn parse_csv(
             delimiter,
             quote_char,
             null_string,
-            buffer_size,
-            result_type,
+            result_type: result_type,
             flexible,
-            flexible_default: leaked_flexible_default.as_deref(),
+            flexible_default: flexible_default,
             trim: match trim {
                 Trim::All => Some("all".to_string()),
                 Trim::Headers => Some("headers".to_string()),
@@ -51,60 +82,47 @@ pub fn parse_csv(
         });
     }
 
-    let iter: Box<dyn Iterator<Item = CsvRecord<RandomState>>> = match result_type.as_str() {
-        "hash" => {
+    let result_type = ResultType::from_str(&result_type).ok_or_else(|| {
+        Error::new(
+            ruby.exception_runtime_error(),
+            "Invalid result type, expected 'hash' or 'array'",
+        )
+    })?;
+
+    let iter: Box<dyn Iterator<Item = CsvRecord<RandomState>>> = match result_type {
+        ResultType::Hash => {
             let builder = RecordReaderBuilder::<
-                HashMap<StringCacheKey, Option<CowValue<'static>>, RandomState>,
+                HashMap<StringCacheKey, Option<CowStr<'static>>, RandomState>,
             >::new(ruby, to_read)
             .has_headers(has_headers)
             .flexible(flexible)
-            .flexible_default(flexible_default.as_deref())
+            .flexible_default(flexible_default)
             .trim(trim)
             .delimiter(delimiter)
             .quote_char(quote_char)
-            .null_string(null_string)
-            .buffer(buffer_size);
+            .null_string(null_string);
 
-            Box::new(builder.build_threaded()?.map(CsvRecord::Map))
+            Box::new(builder.build()?.map(CsvRecord::Map))
         }
-        "array" => Box::new(
-            RecordReaderBuilder::<Vec<Option<CowValue<'static>>>>::new(ruby, to_read)
+        ResultType::Array => {
+            let builder = RecordReaderBuilder::<Vec<Option<CowStr<'static>>>>::new(ruby, to_read)
                 .has_headers(has_headers)
                 .flexible(flexible)
-                .flexible_default(flexible_default.as_deref())
+                .flexible_default(flexible_default)
                 .trim(trim)
                 .delimiter(delimiter)
                 .quote_char(quote_char)
                 .null_string(null_string)
-                .buffer(buffer_size)
-                .build_threaded()?
-                .map(CsvRecord::Vec),
-        ),
-        _ => {
-            return Err(Error::new(
-                ruby.exception_runtime_error(),
-                "Invalid result type",
-            ))
+                .build()?;
+
+            Box::new(builder.map(CsvRecord::Vec))
         }
     };
 
     Ok(Yield::Iter(iter))
 }
 
-struct EnumeratorArgs {
-    rb_self: Value,
-    to_read: Value,
-    has_headers: bool,
-    delimiter: u8,
-    quote_char: u8,
-    null_string: Option<String>,
-    buffer_size: usize,
-    result_type: String,
-    flexible: bool,
-    flexible_default: Option<&'static str>,
-    trim: Option<String>,
-}
-
+/// Creates an enumerator for lazy CSV parsing
 fn create_enumerator(
     args: EnumeratorArgs,
 ) -> Result<Yield<Box<dyn Iterator<Item = CsvRecord<'static, RandomState>>>>, Error> {
@@ -119,11 +137,11 @@ fn create_enumerator(
         String::from_utf8(vec![args.quote_char]).unwrap(),
     )?;
     kwargs.aset(Symbol::new("nil_string"), args.null_string)?;
-    kwargs.aset(Symbol::new("buffer_size"), args.buffer_size)?;
     kwargs.aset(Symbol::new("result_type"), Symbol::new(args.result_type))?;
     kwargs.aset(Symbol::new("flexible"), args.flexible)?;
     kwargs.aset(Symbol::new("flexible_default"), args.flexible_default)?;
     kwargs.aset(Symbol::new("trim"), args.trim.map(Symbol::new))?;
+
     let enumerator = args
         .rb_self
         .enumeratorize("for_each", (args.to_read, KwArgs(kwargs)));

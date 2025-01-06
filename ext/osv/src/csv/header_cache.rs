@@ -1,4 +1,3 @@
-use magnus::{r_string::FString, value::Opaque, IntoValue, RString, Ruby, Value};
 /// This module exists to avoid cloning header keys in returned HashMaps.
 /// Since the underlying RString creation already involves cloning,
 /// this caching layer aims to reduce redundant allocations.
@@ -7,8 +6,14 @@ use magnus::{r_string::FString, value::Opaque, IntoValue, RString, Ruby, Value};
 /// so this optimization could be removed if any issues arise.
 use std::{
     collections::HashMap,
-    sync::{atomic::AtomicU32, atomic::Ordering, LazyLock, Mutex},
+    sync::{
+        atomic::{AtomicU32, Ordering},
+        LazyLock, Mutex, OnceLock,
+    },
 };
+
+use magnus::{r_string::FString, value::Opaque, IntoValue, RString, Ruby, Value};
+
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -130,5 +135,26 @@ impl StringCache {
         }
 
         Ok(())
+    }
+}
+
+pub struct HeaderCacheCleanupIter<I> {
+    pub inner: I,
+    pub headers: OnceLock<Vec<StringCacheKey>>,
+}
+
+impl<I: Iterator> Iterator for HeaderCacheCleanupIter<I> {
+    type Item = I::Item;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.inner.next()
+    }
+}
+
+impl<I> Drop for HeaderCacheCleanupIter<I> {
+    fn drop(&mut self) {
+        if let Some(headers) = self.headers.get() {
+            StringCache::clear(&headers).unwrap();
+        }
     }
 }
