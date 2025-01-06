@@ -5,7 +5,7 @@ on:
     branches: ["main"]
     paths:
       - "lib/osv/version.rb"
-
+  workflow_dispatch:
 jobs:
   build:
     name: Build + Publish
