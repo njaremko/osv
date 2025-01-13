@@ -47,14 +47,14 @@ pub fn parse_read_csv_args(ruby: &Ruby, args: &[Value]) -> Result<ReadCsvArgs, E
         _,
         (),
         (
-            Option<bool>,
-            Option<String>,
-            Option<String>,
+            Option<Option<bool>>,
             Option<Option<String>>,
-            Option<Value>,
-            Option<bool>,
             Option<Option<String>>,
-            Option<Value>,
+            Option<Option<String>>,
+            Option<Option<Value>>,
+            Option<Option<bool>>,
+            Option<Option<Option<String>>>,
+            Option<Option<Value>>,
         ),
         (),
     >(
@@ -72,11 +72,12 @@ pub fn parse_read_csv_args(ruby: &Ruby, args: &[Value]) -> Result<ReadCsvArgs, E
         ],
     )?;
 
-    let has_headers = kwargs.optional.0.unwrap_or(true);
+    let has_headers = kwargs.optional.0.flatten().unwrap_or(true);
 
     let delimiter = *kwargs
         .optional
         .1
+        .flatten()
         .unwrap_or_else(|| ",".to_string())
         .as_bytes()
         .first()
@@ -90,6 +91,7 @@ pub fn parse_read_csv_args(ruby: &Ruby, args: &[Value]) -> Result<ReadCsvArgs, E
     let quote_char = *kwargs
         .optional
         .2
+        .flatten()
         .unwrap_or_else(|| "\"".to_string())
         .as_bytes()
         .first()
@@ -105,6 +107,7 @@ pub fn parse_read_csv_args(ruby: &Ruby, args: &[Value]) -> Result<ReadCsvArgs, E
     let result_type = match kwargs
         .optional
         .4
+        .flatten()
         .map(|value| parse_string_or_symbol(ruby, value))
     {
         Some(Ok(Some(parsed))) => match parsed.as_str() {
@@ -126,13 +129,14 @@ pub fn parse_read_csv_args(ruby: &Ruby, args: &[Value]) -> Result<ReadCsvArgs, E
         None => String::from("hash"),
     };
 
-    let flexible = kwargs.optional.5.unwrap_or_default();
+    let flexible = kwargs.optional.5.flatten().unwrap_or_default();
 
-    let flexible_default = kwargs.optional.6.unwrap_or_default();
+    let flexible_default = kwargs.optional.6.flatten().unwrap_or_default();
 
     let trim = match kwargs
         .optional
         .7
+        .flatten()
         .map(|value| parse_string_or_symbol(ruby, value))
     {
         Some(Ok(Some(parsed))) => match parsed.as_str() {

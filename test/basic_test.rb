@@ -570,6 +570,34 @@ class BasicTest < Minitest::Test
     assert_equal expected, actual
   end
 
+  def test_parse_csv_with_explicit_nil_kwargs
+    csv_content = <<~CSV
+      id,name,age
+      1,John,25
+      2,Jane,30
+    CSV
+
+    expected = [{ "id" => "1", "name" => "John", "age" => "25" }, { "id" => "2", "name" => "Jane", "age" => "30" }]
+
+    actual = []
+    StringIO
+      .new(csv_content)
+      .tap do |io|
+        OSV.for_each(
+          io,
+          has_headers: nil,
+          col_sep: nil,
+          quote_char: nil,
+          nil_string: nil,
+          result_type: nil,
+          flexible: nil,
+          flexible_default: nil,
+          trim: nil
+        ) { |row| actual << row }
+      end
+    assert_equal expected, actual
+  end
+
   def test_parse_csv_with_whitespace_and_quotes
     csv_content = <<~CSV
       id,name,description

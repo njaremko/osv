@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.18
+
+- Fix handling of passing in explicit nil for optional arguments.
+
 ## 0.3.17
 
 - Remove multi-threaded parsing. It was a bad idea. Performance is better without it. Code is simpler.
