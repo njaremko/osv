@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.19 and 0.3.20
+
+- Added `ignore_null_bytes` option to `for_each` that allows ignoring null bytes in fields
+- The latter just removes an unneeded string copy when filtering out null bytes
+
 ## 0.3.18
 
 - Fix handling of passing in explicit nil for optional arguments.
