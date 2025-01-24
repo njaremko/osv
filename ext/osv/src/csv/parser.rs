@@ -13,6 +13,7 @@ pub trait RecordParser<'a> {
         record: &csv::StringRecord,
         null_string: Option<Cow<'a, str>>,
         flexible_default: Option<Cow<'a, str>>,
+        ignore_null_bytes: bool,
     ) -> Self::Output;
 }
 
@@ -27,12 +28,13 @@ impl<'a, S: BuildHasher + Default> RecordParser<'a>
         record: &csv::StringRecord,
         null_string: Option<Cow<'a, str>>,
         flexible_default: Option<Cow<'a, str>>,
+        ignore_null_bytes: bool,
     ) -> Self::Output {
         let mut map = HashMap::with_capacity_and_hasher(headers.len(), S::default());
 
         let shared_empty = Cow::Borrowed("");
         let shared_default = flexible_default.map(CowStr);
-        headers.iter().enumerate().for_each(|(i, ref header)| {
+        headers.iter().enumerate().for_each(|(i, header)| {
             let value = record.get(i).map_or_else(
                 || shared_default.clone(),
                 |field| {
@@ -40,12 +42,15 @@ impl<'a, S: BuildHasher + Default> RecordParser<'a>
                         None
                     } else if field.is_empty() {
                         Some(CowStr(shared_empty.clone()))
-                    } else {
+                    } else if ignore_null_bytes  {
+                        Some(CowStr(Cow::Owned(field.replace("\0", "").to_string())))
+                    }
+                    else {
                         Some(CowStr(Cow::Owned(field.to_string())))
                     }
                 },
             );
-            map.insert((*header).clone(), value);
+            map.insert(*header, value);
         });
         map
     }
@@ -60,6 +65,7 @@ impl<'a> RecordParser<'a> for Vec<Option<CowStr<'a>>> {
         record: &csv::StringRecord,
         null_string: Option<Cow<'a, str>>,
         flexible_default: Option<Cow<'a, str>>,
+        ignore_null_bytes: bool,
     ) -> Self::Output {
         let target_len = headers.len();
         let mut vec = Vec::with_capacity(target_len);
@@ -72,7 +78,10 @@ impl<'a> RecordParser<'a> for Vec<Option<CowStr<'a>>> {
                 None
             } else if field.is_empty() {
                 Some(CowStr(shared_empty.clone()))
-            } else {
+            } else if ignore_null_bytes  {
+                Some(CowStr(Cow::Owned(field.replace("\0", "").to_string())))
+            }
+            else {
                 Some(CowStr(Cow::Owned(field.to_string())))
             };
             vec.push(value);

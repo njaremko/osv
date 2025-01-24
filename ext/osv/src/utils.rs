@@ -36,6 +36,7 @@ pub struct ReadCsvArgs {
     pub flexible: bool,
     pub flexible_default: Option<String>,
     pub trim: csv::Trim,
+    pub ignore_null_bytes: bool,
 }
 
 /// Parse common arguments for CSV parsing
@@ -55,6 +56,7 @@ pub fn parse_read_csv_args(ruby: &Ruby, args: &[Value]) -> Result<ReadCsvArgs, E
             Option<Option<bool>>,
             Option<Option<Option<String>>>,
             Option<Option<Value>>,
+            Option<Option<bool>>,
         ),
         (),
     >(
@@ -69,6 +71,7 @@ pub fn parse_read_csv_args(ruby: &Ruby, args: &[Value]) -> Result<ReadCsvArgs, E
             "flexible",
             "flexible_default",
             "trim",
+            "ignore_null_bytes",
         ],
     )?;
 
@@ -163,6 +166,8 @@ pub fn parse_read_csv_args(ruby: &Ruby, args: &[Value]) -> Result<ReadCsvArgs, E
         None => csv::Trim::None,
     };
 
+    let ignore_null_bytes = kwargs.optional.8.flatten().unwrap_or_default();
+
     Ok(ReadCsvArgs {
         to_read,
         has_headers,
@@ -173,5 +178,6 @@ pub fn parse_read_csv_args(ruby: &Ruby, args: &[Value]) -> Result<ReadCsvArgs, E
         flexible,
         flexible_default,
         trim,
+        ignore_null_bytes,
     })
 }

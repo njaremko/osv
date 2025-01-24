@@ -99,7 +99,7 @@ impl StringCache {
                 counter.fetch_add(1, Ordering::Relaxed);
                 result.push(*interned_string);
             } else {
-                let interned = StringCacheKey::new(&string);
+                let interned = StringCacheKey::new(string);
                 let leaked = Box::leak(string.clone().into_boxed_str());
                 cache.insert(leaked, (interned, AtomicU32::new(1)));
                 result.push(interned);
@@ -154,7 +154,7 @@ impl<I: Iterator> Iterator for HeaderCacheCleanupIter<I> {
 impl<I> Drop for HeaderCacheCleanupIter<I> {
     fn drop(&mut self) {
         if let Some(headers) = self.headers.get() {
-            StringCache::clear(&headers).unwrap();
+            StringCache::clear(headers).unwrap();
         }
     }
 }

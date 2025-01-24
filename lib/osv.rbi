@@ -23,6 +23,8 @@ module OSV
   #   - `trim`: String specifying the trim mode
   #             ("all" or "headers" or "fields" or :all or :headers or :fields)
   #             (default: `nil`)
+  #   - `ignore_null_bytes`: Boolean specifying if null bytes should be ignored
+  #                         (default: false)
   sig do
     params(
       input: T.any(String, StringIO, IO),
@@ -34,6 +36,7 @@ module OSV
       result_type: T.nilable(T.any(String, Symbol)),
       flexible: T.nilable(T::Boolean),
       flexible_default: T.nilable(String),
+      ignore_null_bytes: T.nilable(T::Boolean),
       trim: T.nilable(T.any(String, Symbol)),
       blk: T.nilable(T.proc.params(row: T.any(T::Hash[String, T.nilable(String)], T::Array[T.nilable(String)])).void)
     ).returns(T.any(Enumerator, T.untyped))
@@ -48,6 +51,7 @@ module OSV
     result_type: nil,
     flexible: nil,
     flexible_default: nil,
+    ignore_null_bytes: nil,
     trim: nil,
     &blk
   )

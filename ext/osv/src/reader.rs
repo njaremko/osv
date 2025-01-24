@@ -60,6 +60,7 @@ pub fn parse_csv(
         flexible,
         flexible_default,
         trim,
+        ignore_null_bytes,
     } = parse_read_csv_args(&ruby, args)?;
 
     if !ruby.block_given() {
@@ -70,9 +71,9 @@ pub fn parse_csv(
             delimiter,
             quote_char,
             null_string,
-            result_type: result_type,
+            result_type,
             flexible,
-            flexible_default: flexible_default,
+            flexible_default,
             trim: match trim {
                 Trim::All => Some("all".to_string()),
                 Trim::Headers => Some("headers".to_string()),
@@ -100,9 +101,11 @@ pub fn parse_csv(
             .trim(trim)
             .delimiter(delimiter)
             .quote_char(quote_char)
-            .null_string(null_string);
+            .null_string(null_string)
+            .ignore_null_bytes(ignore_null_bytes)
+            .build()?;
 
-            Box::new(builder.build()?.map(CsvRecord::Map))
+            Box::new(builder.map(CsvRecord::Map))
         }
         ResultType::Array => {
             let builder = RecordReaderBuilder::<Vec<Option<CowStr<'static>>>>::new(ruby, to_read)
@@ -113,6 +116,7 @@ pub fn parse_csv(
                 .delimiter(delimiter)
                 .quote_char(quote_char)
                 .null_string(null_string)
+                .ignore_null_bytes(ignore_null_bytes)
                 .build()?;
 
             Box::new(builder.map(CsvRecord::Vec))

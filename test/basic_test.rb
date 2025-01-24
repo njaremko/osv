@@ -650,4 +650,29 @@ class BasicTest < Minitest::Test
     StringIO.new(csv_content).tap { |io| OSV.for_each(io, result_type: :array) { |row| actual << row } }
     assert_equal expected, actual
   end
+
+  def test_parse_csv_with_null_bytes
+    csv_content = <<~CSV
+      id,na\0me,description
+      1,Jo\0hn,test
+      2,Jane,te\0st
+    CSV
+
+    expected = [
+      { "id" => "1", "name" => "John", "description" => "test" },
+      { "id" => "2", "name" => "Jane", "description" => "test" }
+    ]
+
+    actual = []
+    StringIO.new(csv_content).tap { |io| OSV.for_each(io, ignore_null_bytes: true) { |row| actual << row } }
+    assert_equal expected, actual
+
+    # Without ignore_null_bytes, null bytes are preserved
+    actual = []
+    StringIO.new(csv_content).tap { |io| OSV.for_each(io) { |row| actual << row } }
+    assert_equal [
+      { "id" => "1", "na\0me" => "Jo\0hn", "description" => "test" },
+      { "id" => "2", "na\0me" => "Jane", "description" => "te\0st" }
+    ], actual
+  end
 end

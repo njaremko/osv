@@ -18,6 +18,7 @@ pub struct RecordReader<'a, T: RecordParser<'a>> {
     flexible_default: Option<Cow<'a, str>>,
     string_record: csv::StringRecord,
     parser: std::marker::PhantomData<T>,
+    ignore_null_bytes: bool,
 }
 
 impl<'a, T: RecordParser<'a>> RecordReader<'a, T> {
@@ -56,6 +57,7 @@ impl<'a, T: RecordParser<'a>> RecordReader<'a, T> {
         headers: Vec<StringCacheKey>,
         null_string: Option<Cow<'a, str>>,
         flexible_default: Option<Cow<'a, str>>,
+        ignore_null_bytes: bool,
     ) -> Self {
         let headers_len = headers.len();
         Self {
@@ -65,6 +67,7 @@ impl<'a, T: RecordParser<'a>> RecordReader<'a, T> {
             flexible_default,
             string_record: csv::StringRecord::with_capacity(READ_BUFFER_SIZE, headers_len),
             parser: std::marker::PhantomData,
+            ignore_null_bytes,
         }
     }
 
@@ -76,6 +79,7 @@ impl<'a, T: RecordParser<'a>> RecordReader<'a, T> {
                 &self.string_record,
                 self.null_string.clone(),
                 self.flexible_default.clone(),
+                self.ignore_null_bytes
             ))),
             false => Ok(None),
         }

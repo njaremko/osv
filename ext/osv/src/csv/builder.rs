@@ -67,6 +67,7 @@ pub struct RecordReaderBuilder<'a, T: RecordParser<'a>> {
     flexible: bool,
     flexible_default: Option<String>,
     trim: csv::Trim,
+    ignore_null_bytes: bool,
     _phantom: PhantomData<T>,
     _phantom_a: PhantomData<&'a ()>,
 }
@@ -84,6 +85,7 @@ impl<'a, T: RecordParser<'a>> RecordReaderBuilder<'a, T> {
             flexible: false,
             flexible_default: None,
             trim: csv::Trim::None,
+            ignore_null_bytes: false,
             _phantom: PhantomData,
             _phantom_a: PhantomData,
         }
@@ -135,6 +137,12 @@ impl<'a, T: RecordParser<'a>> RecordReaderBuilder<'a, T> {
     #[must_use]
     pub fn trim(mut self, trim: csv::Trim) -> Self {
         self.trim = trim;
+        self
+    }
+
+    #[must_use]
+    pub fn ignore_null_bytes(mut self, ignore_null_bytes: bool) -> Self {
+        self.ignore_null_bytes = ignore_null_bytes;
         self
     }
 
@@ -191,7 +199,10 @@ impl<'a, T: RecordParser<'a>> RecordReaderBuilder<'a, T> {
             .trim(self.trim)
             .from_reader(reader);
 
-        let headers = RecordReader::<T>::get_headers(&self.ruby, &mut reader, self.has_headers)?;
+        let mut headers = RecordReader::<T>::get_headers(&self.ruby, &mut reader, self.has_headers)?;
+        if self.ignore_null_bytes {
+            headers = headers.iter().map(|h| h.replace("\0", "")).collect();
+        }
         let static_headers = StringCache::intern_many(&headers)?;
 
         // We intern both of these to get static string references we can reuse throughout the parser.
@@ -204,7 +215,7 @@ impl<'a, T: RecordParser<'a>> RecordReaderBuilder<'a, T> {
                     .map_err(|e| ReaderError::InvalidFlexibleDefault(format!("{:?}", e)))
             })
             .transpose()?
-            .map(|s| Cow::Borrowed(s));
+            .map(Cow::Borrowed);
 
         let null_string = self
             .null_string
@@ -215,13 +226,14 @@ impl<'a, T: RecordParser<'a>> RecordReaderBuilder<'a, T> {
                     .map_err(|e| ReaderError::InvalidNullString(format!("{:?}", e)))
             })
             .transpose()?
-            .map(|s| Cow::Borrowed(s));
+            .map(Cow::Borrowed);
 
         Ok(RecordReader::new(
             reader,
             static_headers,
             null_string,
             flexible_default,
+            self.ignore_null_bytes,
         ))
     }
 }
