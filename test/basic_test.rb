@@ -667,6 +667,9 @@ class BasicTest < Minitest::Test
     StringIO.new(csv_content).tap { |io| OSV.for_each(io, ignore_null_bytes: true) { |row| actual << row } }
     assert_equal expected, actual
 
+    actual = OSV.for_each(csv_content, ignore_null_bytes: true).to_a
+    assert_equal expected, actual
+
     # Without ignore_null_bytes, null bytes are preserved
     actual = []
     StringIO.new(csv_content).tap { |io| OSV.for_each(io) { |row| actual << row } }

@@ -36,6 +36,7 @@ struct EnumeratorArgs {
     flexible: bool,
     flexible_default: Option<String>,
     trim: Option<String>,
+    ignore_null_bytes: bool,
 }
 
 /// Parses a CSV file with the given configuration.
@@ -80,6 +81,7 @@ pub fn parse_csv(
                 Trim::Fields => Some("fields".to_string()),
                 _ => None,
             },
+            ignore_null_bytes,
         });
     }
 
@@ -145,6 +147,9 @@ fn create_enumerator(
     kwargs.aset(Symbol::new("flexible"), args.flexible)?;
     kwargs.aset(Symbol::new("flexible_default"), args.flexible_default)?;
     kwargs.aset(Symbol::new("trim"), args.trim.map(Symbol::new))?;
+
+    kwargs.aset(Symbol::new("ignore_null_bytes"), args.ignore_null_bytes)?;
+
 
     let enumerator = args
         .rb_self

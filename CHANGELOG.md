@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.21
+
+- Fix bug where `ignore_null_bytes` was not being respected in enumerators.
+
 ## 0.3.19 and 0.3.20
 
 - Added `ignore_null_bytes` option to `for_each` that allows ignoring null bytes in fields
