@@ -1,3 +1,4 @@
+use super::builder::ReaderError;
 use super::header_cache::StringCacheKey;
 use super::parser::RecordParser;
 use super::{header_cache::StringCache, ruby_reader::SeekableRead};
@@ -72,28 +73,31 @@ impl<'a, T: RecordParser<'a>> RecordReader<'a, T> {
     }
 
     /// Attempts to read the next record, returning any errors encountered.
-    fn try_next(&mut self) -> csv::Result<Option<T::Output>> {
-        match self.reader.read_record(&mut self.string_record)? {
-            true => Ok(Some(T::parse(
+    fn try_next(&mut self) -> Result<Option<T::Output>, ReaderError> {
+        if self.reader.read_record(&mut self.string_record)? {
+            Ok(Some(T::parse(
                 &self.headers,
                 &self.string_record,
                 self.null_string.clone(),
                 self.flexible_default.clone(),
-                self.ignore_null_bytes
-            ))),
-            false => Ok(None),
+                self.ignore_null_bytes,
+            )))
+        } else {
+            Ok(None)
         }
     }
 }
 
 impl<'a, T: RecordParser<'a>> Iterator for RecordReader<'a, T> {
-    type Item = T::Output;
+    type Item = Result<T::Output, ReaderError>;
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        // Note: We intentionally swallow errors here to maintain Iterator contract.
-        // Errors can be handled by using try_next() directly if needed.
-        self.try_next().ok().flatten()
+        match self.try_next() {
+            Ok(Some(record)) => Some(Ok(record)),
+            Ok(None) => None,
+            Err(e) => Some(Err(e)),
+        }
     }
 
     #[inline]

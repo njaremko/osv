@@ -3,7 +3,7 @@ use crate::utils::*;
 use ahash::RandomState;
 use csv::Trim;
 use magnus::value::ReprValue;
-use magnus::{block::Yield, Error, KwArgs, RHash, Ruby, Symbol, Value};
+use magnus::{Error, IntoValue, KwArgs, RHash, Ruby, Symbol, Value};
 use std::collections::HashMap;
 
 /// Valid result types for CSV parsing
@@ -44,10 +44,7 @@ struct EnumeratorArgs {
 /// # Safety
 /// This function uses unsafe code to get the Ruby runtime and leak memory for static references.
 /// This is necessary for Ruby integration but should be used with caution.
-pub fn parse_csv(
-    rb_self: Value,
-    args: &[Value],
-) -> Result<Yield<Box<dyn Iterator<Item = CsvRecord<'static, RandomState>>>>, Error> {
+pub fn parse_csv(rb_self: Value, args: &[Value]) -> Result<Value, Error> {
     //  SAFETY: We're in a Ruby callback, so Ruby runtime is guaranteed to be initialized
     let ruby = unsafe { Ruby::get_unchecked() };
 
@@ -82,7 +79,8 @@ pub fn parse_csv(
                 _ => None,
             },
             ignore_null_bytes,
-        });
+        })
+        .map(|yield_enum| yield_enum.into_value_with(&ruby));
     }
 
     let result_type = ResultType::from_str(&result_type).ok_or_else(|| {
@@ -92,7 +90,7 @@ pub fn parse_csv(
         )
     })?;
 
-    let iter: Box<dyn Iterator<Item = CsvRecord<RandomState>>> = match result_type {
+    match result_type {
         ResultType::Hash => {
             let builder = RecordReaderBuilder::<
                 HashMap<StringCacheKey, Option<CowStr<'static>>, RandomState>,
@@ -107,7 +105,11 @@ pub fn parse_csv(
             .ignore_null_bytes(ignore_null_bytes)
             .build()?;
 
-            Box::new(builder.map(CsvRecord::Map))
+            let ruby = unsafe { Ruby::get_unchecked() };
+            for result in builder {
+                let record = result?;
+                let _: Value = ruby.yield_value(CsvRecord::Map(record))?;
+            }
         }
         ResultType::Array => {
             let builder = RecordReaderBuilder::<Vec<Option<CowStr<'static>>>>::new(ruby, to_read)
@@ -121,17 +123,20 @@ pub fn parse_csv(
                 .ignore_null_bytes(ignore_null_bytes)
                 .build()?;
 
-            Box::new(builder.map(CsvRecord::Vec))
+            let ruby = unsafe { Ruby::get_unchecked() };
+            for result in builder {
+                let record = result?;
+                let _: Value = ruby.yield_value(CsvRecord::<ahash::RandomState>::Vec(record))?;
+            }
         }
-    };
+    }
 
-    Ok(Yield::Iter(iter))
+    let ruby = unsafe { Ruby::get_unchecked() };
+    Ok(ruby.qnil().into_value_with(&ruby))
 }
 
 /// Creates an enumerator for lazy CSV parsing
-fn create_enumerator(
-    args: EnumeratorArgs,
-) -> Result<Yield<Box<dyn Iterator<Item = CsvRecord<'static, RandomState>>>>, Error> {
+fn create_enumerator(args: EnumeratorArgs) -> Result<magnus::Enumerator, Error> {
     let kwargs = RHash::new();
     kwargs.aset(Symbol::new("has_headers"), args.has_headers)?;
     kwargs.aset(
@@ -147,12 +152,9 @@ fn create_enumerator(
     kwargs.aset(Symbol::new("flexible"), args.flexible)?;
     kwargs.aset(Symbol::new("flexible_default"), args.flexible_default)?;
     kwargs.aset(Symbol::new("trim"), args.trim.map(Symbol::new))?;
-
     kwargs.aset(Symbol::new("ignore_null_bytes"), args.ignore_null_bytes)?;
 
-
-    let enumerator = args
+    Ok(args
         .rb_self
-        .enumeratorize("for_each", (args.to_read, KwArgs(kwargs)));
-    Ok(Yield::Enumerator(enumerator))
+        .enumeratorize("for_each", (args.to_read, KwArgs(kwargs))))
 }

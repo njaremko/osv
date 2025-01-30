@@ -16,6 +16,29 @@ class BasicTest < Minitest::Test
     assert_equal expected, actual
   end
 
+  def test_parse_csv_with_invalid_utf8
+    invalid_utf8 = StringIO.new("id,name\n1,\xFF\xFF\n")
+    assert_raises(EncodingError) do
+
+      OSV.for_each(invalid_utf8) { |_row| }
+    rescue => e
+      assert e.message.include?("invalid utf-8")
+      raise
+    end
+  end
+
+  def test_parse_csv_with_invalid_utf8_file
+    File.write("test/invalid_utf8.csv", "id,name\n1,\xFF\xFF\n")
+    assert_raises(EncodingError) do
+      OSV.for_each("test/invalid_utf8.csv") { |_row| }
+    rescue => e
+      assert e.message.include?("invalid utf-8")
+      raise
+    ensure
+      File.delete("test/invalid_utf8.csv") rescue nil
+    end
+  end
+
   def test_parse_csv_with_headers_null
     expected = [
       { "id" => "1", "age" => "25", "name" => "John" },
@@ -166,7 +189,14 @@ class BasicTest < Minitest::Test
         { "name" => "Jim", "age" => "35", "id" => "3" }
       ]
       actual = []
-      OSV.for_each(tempfile.path) { |row| actual << row }
+
+      assert_raises(RuntimeError) do
+        OSV.for_each(tempfile.path) { |row| actual << row }
+      rescue RuntimeError => e
+        assert e.message.include?("found record with 2 fields, but the previous record has 3 fields")
+        raise
+      end
+
       assert_equal expected, actual
     end
   end
