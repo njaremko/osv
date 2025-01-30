@@ -27,6 +27,14 @@ class BasicTest < Minitest::Test
     end
   end
 
+  def test_enumerator_raises_stop_iteration
+    enum = OSV.for_each("test/test.csv")
+    3.times { enum.next } # Consume all records
+    assert_raises(StopIteration) do
+      enum.next
+    end
+  end
+
   def test_parse_csv_with_invalid_utf8_file
     File.write("test/invalid_utf8.csv", "id,name\n1,\xFF\xFF\n")
     assert_raises(EncodingError) do
