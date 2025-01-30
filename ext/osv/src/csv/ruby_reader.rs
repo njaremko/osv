@@ -1,4 +1,5 @@
 use magnus::{
+    error::Error as MagnusError,
     value::{Opaque, ReprValue},
     RClass, RString, Ruby, Value,
 };
@@ -6,7 +7,7 @@ use std::fs::File;
 use std::io::{self, BufReader, Read, Seek, SeekFrom, Write};
 use std::sync::OnceLock;
 
-use super::ForgottenFileHandle;
+use super::{builder::ReaderError, ForgottenFileHandle};
 
 static STRING_IO_CLASS: OnceLock<Opaque<RClass>> = OnceLock::new();
 
@@ -25,10 +26,7 @@ impl<T: Read + Seek> SeekableRead for BufReader<T> {}
 impl SeekableRead for std::io::Cursor<Vec<u8>> {}
 impl SeekableRead for ForgottenFileHandle {}
 
-pub fn build_ruby_reader(
-    ruby: &Ruby,
-    input: Value,
-) -> Result<Box<dyn SeekableRead>, magnus::Error> {
+pub fn build_ruby_reader(ruby: &Ruby, input: Value) -> Result<Box<dyn SeekableRead>, ReaderError> {
     if RubyReader::is_string_io(ruby, &input) {
         RubyReader::from_string_io(ruby, input)
     } else if RubyReader::is_io_like(&input) {
@@ -88,14 +86,14 @@ impl Seek for RubyReader<RString> {
 }
 
 impl RubyReader<Value> {
-    fn from_io(input: Value) -> Result<Box<dyn SeekableRead>, magnus::Error> {
+    fn from_io(input: Value) -> Result<Box<dyn SeekableRead>, ReaderError> {
         if Self::is_io_like(&input) {
             Ok(Box::new(Self::from_io_like(input)))
         } else {
-            Err(magnus::Error::new(
+            Err(MagnusError::new(
                 magnus::exception::type_error(),
                 "Input is not an IO-like object",
-            ))
+            ))?
         }
     }
 
@@ -112,15 +110,12 @@ impl RubyReader<Value> {
 }
 
 impl RubyReader<RString> {
-    pub fn from_string_io(
-        ruby: &Ruby,
-        input: Value,
-    ) -> Result<Box<dyn SeekableRead>, magnus::Error> {
+    pub fn from_string_io(ruby: &Ruby, input: Value) -> Result<Box<dyn SeekableRead>, ReaderError> {
         if !Self::is_string_io(ruby, &input) {
-            return Err(magnus::Error::new(
+            return Err(MagnusError::new(
                 magnus::exception::type_error(),
                 "Input is not a StringIO",
-            ));
+            ))?;
         }
 
         let string_content = input.funcall::<_, _, RString>("string", ()).unwrap();
@@ -138,11 +133,11 @@ impl RubyReader<RString> {
         input.is_kind_of(ruby.get_inner(*string_io_class))
     }
 
-    fn from_string_like(input: Value) -> Result<Box<dyn SeekableRead>, magnus::Error> {
-        // Try calling `to_str`, and if that fails, try `to_s`
+    fn from_string_like(input: Value) -> Result<Box<dyn SeekableRead>, ReaderError> {
         let string_content = input
             .funcall::<_, _, RString>("to_str", ())
             .or_else(|_| input.funcall::<_, _, RString>("to_s", ()))?;
+
         Ok(Box::new(Self {
             inner: string_content,
             offset: 0,
@@ -154,12 +149,16 @@ impl Read for RubyReader<Value> {
     fn read(&mut self, mut buf: &mut [u8]) -> io::Result<usize> {
         let bytes = self
             .inner
-            .funcall::<_, _, RString>("read", (buf.len(),))
+            .funcall::<_, _, Option<RString>>("read", (buf.len(),))
             .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))?;
 
-        buf.write_all(unsafe { bytes.as_slice() })?;
-
-        Ok(bytes.len())
+        match bytes {
+            Some(bytes) => {
+                buf.write_all(unsafe { bytes.as_slice() })?;
+                Ok(bytes.len())
+            }
+            None => Ok(0), // EOF
+        }
     }
 }
 

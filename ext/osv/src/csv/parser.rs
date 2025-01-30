@@ -42,10 +42,9 @@ impl<'a, S: BuildHasher + Default> RecordParser<'a>
                         None
                     } else if field.is_empty() {
                         Some(CowStr(shared_empty.clone()))
-                    } else if ignore_null_bytes  {
+                    } else if ignore_null_bytes {
                         Some(CowStr(Cow::Owned(field.replace("\0", ""))))
-                    }
-                    else {
+                    } else {
                         Some(CowStr(Cow::Owned(field.to_string())))
                     }
                 },
@@ -78,10 +77,9 @@ impl<'a> RecordParser<'a> for Vec<Option<CowStr<'a>>> {
                 None
             } else if field.is_empty() {
                 Some(CowStr(shared_empty.clone()))
-            } else if ignore_null_bytes  {
+            } else if ignore_null_bytes {
                 Some(CowStr(Cow::Owned(field.replace("\0", ""))))
-            }
-            else {
+            } else {
                 Some(CowStr(Cow::Owned(field.to_string())))
             };
             vec.push(value);

@@ -34,6 +34,10 @@ pub enum ReaderError {
     InvalidFlexibleDefault(String),
     #[error("Invalid null string value: {0}")]
     InvalidNullString(String),
+    #[error("Failed to parse CSV record: {0}")]
+    CsvParse(#[from] csv::Error),
+    #[error("Invalid UTF-8: {0}")]
+    InvalidUtf8(String),
     #[error("Ruby error: {0}")]
     Ruby(String),
 }
@@ -46,10 +50,20 @@ impl From<MagnusError> for ReaderError {
 
 impl From<ReaderError> for MagnusError {
     fn from(err: ReaderError) -> Self {
-        MagnusError::new(
-            Ruby::get().unwrap().exception_runtime_error(),
-            err.to_string(),
-        )
+        let ruby = Ruby::get().unwrap();
+        match err {
+            ReaderError::CsvParse(csv_err) => {
+                if csv_err.to_string().contains("invalid utf-8") {
+                    MagnusError::new(ruby.exception_encoding_error(), csv_err.to_string())
+                } else {
+                    MagnusError::new(ruby.exception_runtime_error(), csv_err.to_string())
+                }
+            }
+            ReaderError::InvalidUtf8(utf8_err) => {
+                MagnusError::new(ruby.exception_encoding_error(), utf8_err.to_string())
+            }
+            _ => MagnusError::new(ruby.exception_runtime_error(), err.to_string()),
+        }
     }
 }
 
@@ -199,7 +213,8 @@ impl<'a, T: RecordParser<'a>> RecordReaderBuilder<'a, T> {
             .trim(self.trim)
             .from_reader(reader);
 
-        let mut headers = RecordReader::<T>::get_headers(&self.ruby, &mut reader, self.has_headers)?;
+        let mut headers =
+            RecordReader::<T>::get_headers(&self.ruby, &mut reader, self.has_headers)?;
         if self.ignore_null_bytes {
             headers = headers.iter().map(|h| h.replace("\0", "")).collect();
         }
