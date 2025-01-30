@@ -34,9 +34,9 @@ struct EnumeratorArgs {
     null_string: Option<String>,
     result_type: String,
     flexible: bool,
-    flexible_default: Option<String>,
     trim: Option<String>,
     ignore_null_bytes: bool,
+    lossy: bool,
 }
 
 /// Parses a CSV file with the given configuration.
@@ -56,9 +56,9 @@ pub fn parse_csv(rb_self: Value, args: &[Value]) -> Result<Value, Error> {
         null_string,
         result_type,
         flexible,
-        flexible_default,
         trim,
         ignore_null_bytes,
+        lossy,
     } = parse_read_csv_args(&ruby, args)?;
 
     if !ruby.block_given() {
@@ -71,7 +71,6 @@ pub fn parse_csv(rb_self: Value, args: &[Value]) -> Result<Value, Error> {
             null_string,
             result_type,
             flexible,
-            flexible_default,
             trim: match trim {
                 Trim::All => Some("all".to_string()),
                 Trim::Headers => Some("headers".to_string()),
@@ -79,6 +78,7 @@ pub fn parse_csv(rb_self: Value, args: &[Value]) -> Result<Value, Error> {
                 _ => None,
             },
             ignore_null_bytes,
+            lossy,
         })
         .map(|yield_enum| yield_enum.into_value_with(&ruby));
     }
@@ -97,12 +97,12 @@ pub fn parse_csv(rb_self: Value, args: &[Value]) -> Result<Value, Error> {
             >::new(ruby, to_read)
             .has_headers(has_headers)
             .flexible(flexible)
-            .flexible_default(flexible_default)
             .trim(trim)
             .delimiter(delimiter)
             .quote_char(quote_char)
             .null_string(null_string)
             .ignore_null_bytes(ignore_null_bytes)
+            .lossy(lossy)
             .build()?;
 
             let ruby = unsafe { Ruby::get_unchecked() };
@@ -115,12 +115,12 @@ pub fn parse_csv(rb_self: Value, args: &[Value]) -> Result<Value, Error> {
             let builder = RecordReaderBuilder::<Vec<Option<CowStr<'static>>>>::new(ruby, to_read)
                 .has_headers(has_headers)
                 .flexible(flexible)
-                .flexible_default(flexible_default)
                 .trim(trim)
                 .delimiter(delimiter)
                 .quote_char(quote_char)
                 .null_string(null_string)
                 .ignore_null_bytes(ignore_null_bytes)
+                .lossy(lossy)
                 .build()?;
 
             let ruby = unsafe { Ruby::get_unchecked() };
@@ -150,10 +150,9 @@ fn create_enumerator(args: EnumeratorArgs) -> Result<magnus::Enumerator, Error> 
     kwargs.aset(Symbol::new("nil_string"), args.null_string)?;
     kwargs.aset(Symbol::new("result_type"), Symbol::new(args.result_type))?;
     kwargs.aset(Symbol::new("flexible"), args.flexible)?;
-    kwargs.aset(Symbol::new("flexible_default"), args.flexible_default)?;
     kwargs.aset(Symbol::new("trim"), args.trim.map(Symbol::new))?;
     kwargs.aset(Symbol::new("ignore_null_bytes"), args.ignore_null_bytes)?;
-
+    kwargs.aset(Symbol::new("lossy"), args.lossy)?;
     Ok(args
         .rb_self
         .enumeratorize("for_each", (args.to_read, KwArgs(kwargs))))

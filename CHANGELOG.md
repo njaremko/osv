@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.0
+
+- Added `lossy` option to `for_each` that allows replacing invalid UTF-8 characters with a replacement character
+- Removed `flexible_default` option from `for_each`
+
 ## 0.3.21
 
 - Fix bug where `ignore_null_bytes` was not being respected in enumerators.

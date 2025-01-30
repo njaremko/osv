@@ -17,14 +17,12 @@ module OSV
   #                    ("hash" or "array" or :hash or :array)
   #   - `flexible`: Boolean specifying if the parser should be flexible
   #                 (default: false)
-  #   - `flexible_default`: String specifying the default value for missing fields.
-  #                         Implicitly enables flexible mode if set.
-  #                         (default: `nil`)
   #   - `trim`: String specifying the trim mode
   #             ("all" or "headers" or "fields" or :all or :headers or :fields)
   #             (default: `nil`)
   #   - `ignore_null_bytes`: Boolean specifying if null bytes should be ignored
   #                         (default: false)
+  #   - `lossy`: Boolean specifying if invalid UTF-8 characters should be replaced with a replacement character
   sig do
     params(
       input: T.any(String, StringIO, IO),
@@ -35,7 +33,6 @@ module OSV
       buffer_size: T.nilable(Integer),
       result_type: T.nilable(T.any(String, Symbol)),
       flexible: T.nilable(T::Boolean),
-      flexible_default: T.nilable(String),
       ignore_null_bytes: T.nilable(T::Boolean),
       trim: T.nilable(T.any(String, Symbol)),
       blk: T.nilable(T.proc.params(row: T.any(T::Hash[String, T.nilable(String)], T::Array[T.nilable(String)])).void)
@@ -50,9 +47,9 @@ module OSV
     buffer_size: nil,
     result_type: nil,
     flexible: nil,
-    flexible_default: nil,
     ignore_null_bytes: nil,
     trim: nil,
+    lossy: nil,
     &blk
   )
   end

@@ -1,6 +1,6 @@
 use super::builder::ReaderError;
 use super::header_cache::StringCacheKey;
-use super::parser::RecordParser;
+use super::parser::{CsvRecordType, RecordParser};
 use super::{header_cache::StringCache, ruby_reader::SeekableRead};
 use magnus::{Error, Ruby};
 use std::borrow::Cow;
@@ -16,8 +16,7 @@ pub struct RecordReader<'a, T: RecordParser<'a>> {
     reader: csv::Reader<BufReader<Box<dyn SeekableRead>>>,
     headers: Vec<StringCacheKey>,
     null_string: Option<Cow<'a, str>>,
-    flexible_default: Option<Cow<'a, str>>,
-    string_record: csv::StringRecord,
+    string_record: CsvRecordType,
     parser: std::marker::PhantomData<T>,
     ignore_null_bytes: bool,
 }
@@ -57,16 +56,25 @@ impl<'a, T: RecordParser<'a>> RecordReader<'a, T> {
         reader: csv::Reader<BufReader<Box<dyn SeekableRead>>>,
         headers: Vec<StringCacheKey>,
         null_string: Option<Cow<'a, str>>,
-        flexible_default: Option<Cow<'a, str>>,
         ignore_null_bytes: bool,
+        lossy: bool,
     ) -> Self {
         let headers_len = headers.len();
         Self {
             reader,
             headers,
             null_string,
-            flexible_default,
-            string_record: csv::StringRecord::with_capacity(READ_BUFFER_SIZE, headers_len),
+            string_record: if lossy {
+                CsvRecordType::Byte(csv::ByteRecord::with_capacity(
+                    READ_BUFFER_SIZE,
+                    headers_len,
+                ))
+            } else {
+                CsvRecordType::String(csv::StringRecord::with_capacity(
+                    READ_BUFFER_SIZE,
+                    headers_len,
+                ))
+            },
             parser: std::marker::PhantomData,
             ignore_null_bytes,
         }
@@ -74,12 +82,15 @@ impl<'a, T: RecordParser<'a>> RecordReader<'a, T> {
 
     /// Attempts to read the next record, returning any errors encountered.
     fn try_next(&mut self) -> Result<Option<T::Output>, ReaderError> {
-        if self.reader.read_record(&mut self.string_record)? {
+        let record = match self.string_record {
+            CsvRecordType::String(ref mut record) => self.reader.read_record(record),
+            CsvRecordType::Byte(ref mut record) => self.reader.read_byte_record(record),
+        }?;
+        if record {
             Ok(Some(T::parse(
                 &self.headers,
                 &self.string_record,
                 self.null_string.clone(),
-                self.flexible_default.clone(),
                 self.ignore_null_bytes,
             )))
         } else {

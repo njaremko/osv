@@ -79,9 +79,9 @@ pub struct RecordReaderBuilder<'a, T: RecordParser<'a>> {
     quote_char: u8,
     null_string: Option<String>,
     flexible: bool,
-    flexible_default: Option<String>,
     trim: csv::Trim,
     ignore_null_bytes: bool,
+    lossy: bool,
     _phantom: PhantomData<T>,
     _phantom_a: PhantomData<&'a ()>,
 }
@@ -97,9 +97,9 @@ impl<'a, T: RecordParser<'a>> RecordReaderBuilder<'a, T> {
             quote_char: b'"',
             null_string: None,
             flexible: false,
-            flexible_default: None,
             trim: csv::Trim::None,
             ignore_null_bytes: false,
+            lossy: false,
             _phantom: PhantomData,
             _phantom_a: PhantomData,
         }
@@ -140,13 +140,6 @@ impl<'a, T: RecordParser<'a>> RecordReaderBuilder<'a, T> {
         self
     }
 
-    /// Sets the default value for missing fields when in flexible mode.
-    #[must_use]
-    pub fn flexible_default(mut self, flexible_default: Option<String>) -> Self {
-        self.flexible_default = flexible_default;
-        self
-    }
-
     /// Sets the trimming mode for fields.
     #[must_use]
     pub fn trim(mut self, trim: csv::Trim) -> Self {
@@ -157,6 +150,12 @@ impl<'a, T: RecordParser<'a>> RecordReaderBuilder<'a, T> {
     #[must_use]
     pub fn ignore_null_bytes(mut self, ignore_null_bytes: bool) -> Self {
         self.ignore_null_bytes = ignore_null_bytes;
+        self
+    }
+
+    #[must_use]
+    pub fn lossy(mut self, lossy: bool) -> Self {
+        self.lossy = lossy;
         self
     }
 
@@ -202,7 +201,7 @@ impl<'a, T: RecordParser<'a>> RecordReaderBuilder<'a, T> {
             build_ruby_reader(&self.ruby, self.to_read)?
         };
 
-        let flexible = self.flexible || self.flexible_default.is_some();
+        let flexible = self.flexible;
         let reader = BufReader::with_capacity(READ_BUFFER_SIZE, readable);
 
         let mut reader = csv::ReaderBuilder::new()
@@ -220,18 +219,6 @@ impl<'a, T: RecordParser<'a>> RecordReaderBuilder<'a, T> {
         }
         let static_headers = StringCache::intern_many(&headers)?;
 
-        // We intern both of these to get static string references we can reuse throughout the parser.
-        let flexible_default = self
-            .flexible_default
-            .map(|s| {
-                RString::new(&s)
-                    .to_interned_str()
-                    .as_str()
-                    .map_err(|e| ReaderError::InvalidFlexibleDefault(format!("{:?}", e)))
-            })
-            .transpose()?
-            .map(Cow::Borrowed);
-
         let null_string = self
             .null_string
             .map(|s| {
@@ -247,8 +234,8 @@ impl<'a, T: RecordParser<'a>> RecordReaderBuilder<'a, T> {
             reader,
             static_headers,
             null_string,
-            flexible_default,
             self.ignore_null_bytes,
+            self.lossy,
         ))
     }
 }

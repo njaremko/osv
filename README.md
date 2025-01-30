@@ -84,11 +84,10 @@ OSV.for_each("data.csv",
 
   # Parsing behavior
   flexible: false,       # Allow varying number of fields (default: false)
-  flexible_default: nil, # Default value for missing fields. If unset, we ignore missing fields.
-                         # Implicitly enables flexible mode if set.
   trim: :all,            # Whether to trim whitespace. Options are :all, :headers, or :fields (default: nil)
   buffer_size: 1024,     # Number of rows to buffer in memory (default: 1024)
   ignore_null_bytes: false, # Boolean specifying if null bytes should be ignored (default: false)
+  lossy: false,             # Boolean specifying if invalid UTF-8 characters should be replaced with a replacement character (default: false)
 )
 ```
 
@@ -103,9 +102,9 @@ OSV.for_each("data.csv",
 - `buffer_size`: Integer specifying the number of rows to buffer in memory (default: 1024)
 - `result_type`: String specifying the output format ("hash" or "array" or :hash or :array)
 - `flexible`: Boolean specifying if the parser should be flexible (default: false)
-- `flexible_default`: String specifying the default value for missing fields. Implicitly enables flexible mode if set. (default: `nil`)
 - `trim`: String specifying the trim mode ("all" or "headers" or "fields" or :all or :headers or :fields)
 - `ignore_null_bytes`: Boolean specifying if null bytes should be ignored (default: false)
+- `lossy`: Boolean specifying if invalid UTF-8 characters should be replaced with a replacement character (default: false)
 
 When `has_headers` is false, hash keys will be generated as `"c0"`, `"c1"`, etc.
 

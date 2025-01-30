@@ -34,9 +34,9 @@ pub struct ReadCsvArgs {
     pub null_string: Option<String>,
     pub result_type: String,
     pub flexible: bool,
-    pub flexible_default: Option<String>,
     pub trim: csv::Trim,
     pub ignore_null_bytes: bool,
+    pub lossy: bool,
 }
 
 /// Parse common arguments for CSV parsing
@@ -54,8 +54,8 @@ pub fn parse_read_csv_args(ruby: &Ruby, args: &[Value]) -> Result<ReadCsvArgs, E
             Option<Option<String>>,
             Option<Option<Value>>,
             Option<Option<bool>>,
-            Option<Option<Option<String>>>,
             Option<Option<Value>>,
+            Option<Option<bool>>,
             Option<Option<bool>>,
         ),
         (),
@@ -69,9 +69,9 @@ pub fn parse_read_csv_args(ruby: &Ruby, args: &[Value]) -> Result<ReadCsvArgs, E
             "nil_string",
             "result_type",
             "flexible",
-            "flexible_default",
             "trim",
             "ignore_null_bytes",
+            "lossy",
         ],
     )?;
 
@@ -134,11 +134,9 @@ pub fn parse_read_csv_args(ruby: &Ruby, args: &[Value]) -> Result<ReadCsvArgs, E
 
     let flexible = kwargs.optional.5.flatten().unwrap_or_default();
 
-    let flexible_default = kwargs.optional.6.flatten().unwrap_or_default();
-
     let trim = match kwargs
         .optional
-        .7
+        .6
         .flatten()
         .map(|value| parse_string_or_symbol(ruby, value))
     {
@@ -166,7 +164,9 @@ pub fn parse_read_csv_args(ruby: &Ruby, args: &[Value]) -> Result<ReadCsvArgs, E
         None => csv::Trim::None,
     };
 
-    let ignore_null_bytes = kwargs.optional.8.flatten().unwrap_or_default();
+    let ignore_null_bytes = kwargs.optional.7.flatten().unwrap_or_default();
+
+    let lossy = kwargs.optional.8.flatten().unwrap_or_default();
 
     Ok(ReadCsvArgs {
         to_read,
@@ -176,8 +176,8 @@ pub fn parse_read_csv_args(ruby: &Ruby, args: &[Value]) -> Result<ReadCsvArgs, E
         null_string,
         result_type,
         flexible,
-        flexible_default,
         trim,
         ignore_null_bytes,
+        lossy,
     })
 }
