@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.4.2
+## 0.4.2 and 0.4.3
 
 - Fix occasional segfault when parsing with `result_type: :hash`
 

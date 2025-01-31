@@ -108,7 +108,7 @@ pub fn parse_csv(rb_self: Value, args: &[Value]) -> Result<Value, Error> {
             let ruby = unsafe { Ruby::get_unchecked() };
             for result in builder {
                 let record = result?;
-                let _: Value = ruby.yield_value(CsvRecord::Map(record))?;
+                let _: Value = ruby.yield_value(CsvRecord::<ahash::RandomState>::Map(record))?;
             }
         }
         ResultType::Array => {
