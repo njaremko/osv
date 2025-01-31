@@ -1,9 +1,12 @@
 # Changelog
 
+## 0.4.2
+
+- Fix occasional segfault when parsing with `result_type: :hash`
+
 ## 0.4.1
 
 - Fix bug with lossy not being respected when parsing headers
-- Fix occasional segfault when parsing with `result_type: :hash`
 
 ## 0.4.0
 

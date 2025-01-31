@@ -1,7 +1,7 @@
 use super::builder::ReaderError;
 use super::header_cache::StringCacheKey;
 use super::parser::{CsvRecordType, RecordParser};
-use super::{header_cache::StringCache, ruby_reader::SeekableRead};
+use super::ruby_reader::SeekableRead;
 use magnus::{Error, Ruby};
 use std::borrow::Cow;
 use std::io::{BufReader, Read};
@@ -135,13 +135,5 @@ impl<'a, T: RecordParser<'a>> Iterator for RecordReader<'a, T> {
     #[inline]
     fn size_hint(&self) -> (usize, Option<usize>) {
         (0, None) // Cannot determine size without reading entire file
-    }
-}
-
-impl<'a, T: RecordParser<'a>> Drop for RecordReader<'a, T> {
-    #[inline]
-    fn drop(&mut self) {
-        // Intentionally ignore errors during cleanup as there's no meaningful way to handle them
-        let _ = StringCache::clear(&self.headers);
     }
 }

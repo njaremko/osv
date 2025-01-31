@@ -8,7 +8,7 @@ use std::{
     collections::HashMap,
     sync::{
         atomic::{AtomicU32, Ordering},
-        Arc, LazyLock, Mutex, OnceLock,
+        Arc, LazyLock, Mutex,
     },
 };
 
@@ -111,55 +111,5 @@ impl StringCache {
             }
         }
         Ok(result)
-    }
-
-    pub fn clear(headers: &[Arc<StringCacheKey>]) -> Result<(), CacheError> {
-        let mut cache = STRING_CACHE
-            .lock()
-            .map_err(|e| CacheError::LockError(e.to_string()))?;
-
-        let to_remove: Vec<_> = headers
-            .iter()
-            .filter_map(|header| {
-                let key = header.as_ref().as_ref();
-                if let Some((_, (_, counter))) = cache.get_key_value(key) {
-                    let prev_count = counter.fetch_sub(1, Ordering::Relaxed);
-                    if prev_count == 1 {
-                        Some(key)
-                    } else {
-                        None
-                    }
-                } else {
-                    None
-                }
-            })
-            .collect();
-
-        for key in to_remove {
-            cache.remove(key);
-        }
-
-        Ok(())
-    }
-}
-
-pub struct HeaderCacheCleanupIter<I> {
-    pub inner: I,
-    pub headers: OnceLock<Vec<Arc<StringCacheKey>>>,
-}
-
-impl<I: Iterator> Iterator for HeaderCacheCleanupIter<I> {
-    type Item = I::Item;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.inner.next()
-    }
-}
-
-impl<I> Drop for HeaderCacheCleanupIter<I> {
-    fn drop(&mut self) {
-        if let Some(headers) = self.headers.get() {
-            StringCache::clear(headers).unwrap();
-        }
     }
 }
