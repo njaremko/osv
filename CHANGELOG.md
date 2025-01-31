@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.1
+
+- Fix bug with lossy not being respected when parsing headers
+- Fix occasional segfault when parsing with `result_type: :hash`
+
 ## 0.4.0
 
 - Added `lossy` option to `for_each` that allows replacing invalid UTF-8 characters with a replacement character
