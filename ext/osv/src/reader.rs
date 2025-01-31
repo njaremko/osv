@@ -94,7 +94,7 @@ pub fn parse_csv(rb_self: Value, args: &[Value]) -> Result<Value, Error> {
     match result_type {
         ResultType::Hash => {
             let builder = RecordReaderBuilder::<
-                HashMap<Arc<StringCacheKey>, Option<CowStr<'static>>, RandomState>,
+                HashMap<Arc<StringCacheKey>, Option<CowStr<'_>>, RandomState>,
             >::new(ruby, to_read)
             .has_headers(has_headers)
             .flexible(flexible)
@@ -113,7 +113,7 @@ pub fn parse_csv(rb_self: Value, args: &[Value]) -> Result<Value, Error> {
             }
         }
         ResultType::Array => {
-            let builder = RecordReaderBuilder::<Vec<Option<CowStr<'static>>>>::new(ruby, to_read)
+            let builder = RecordReaderBuilder::<Vec<Option<CowStr<'_>>>>::new(ruby, to_read)
                 .has_headers(has_headers)
                 .flexible(flexible)
                 .trim(trim)
