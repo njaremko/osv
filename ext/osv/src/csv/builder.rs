@@ -213,7 +213,8 @@ impl<'a, T: RecordParser<'a>> RecordReaderBuilder<'a, T> {
             .from_reader(reader);
 
         let mut headers =
-            RecordReader::<T>::get_headers(&self.ruby, &mut reader, self.has_headers)?;
+            RecordReader::<T>::get_headers(&self.ruby, &mut reader, self.has_headers, self.lossy)?;
+
         if self.ignore_null_bytes {
             headers = headers.iter().map(|h| h.replace("\0", "")).collect();
         }

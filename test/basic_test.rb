@@ -56,6 +56,15 @@ class BasicTest < Minitest::Test
     File.delete("test/invalid_utf8.csv") rescue nil
   end
 
+  def test_parse_csv_with_invalid_utf8_headers_lossy
+    File.write("test/invalid_utf8_headers.csv", "\xFF\xFF,name\n1,test\n")
+    actual = []
+    OSV.for_each("test/invalid_utf8_headers.csv", lossy: true) { |row| actual << row }
+    assert_equal [{ "��" => "1", "name" => "test" }], actual
+  ensure
+    File.delete("test/invalid_utf8_headers.csv") rescue nil
+  end
+
   def test_parse_csv_with_headers_null
     expected = [
       { "id" => "1", "age" => "25", "name" => "John" },

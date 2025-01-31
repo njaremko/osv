@@ -36,19 +36,39 @@ impl<'a, T: RecordParser<'a>> RecordReader<'a, T> {
         ruby: &Ruby,
         reader: &mut csv::Reader<impl Read>,
         has_headers: bool,
+        lossy: bool,
     ) -> Result<Vec<String>, Error> {
-        let first_row = reader.headers().map_err(|e| {
-            Error::new(
-                ruby.exception_runtime_error(),
-                format!("Failed to read headers: {e}"),
-            )
-        })?;
-
-        Ok(if has_headers {
-            first_row.iter().map(String::from).collect()
+        let headers = if lossy {
+            let first_row = reader.byte_headers().map_err(|e| {
+                Error::new(
+                    ruby.exception_runtime_error(),
+                    format!("Failed to read headers: {e}"),
+                )
+            })?;
+            if has_headers {
+                first_row
+                    .iter()
+                    .map(String::from_utf8_lossy)
+                    .map(|x| x.to_string())
+                    .collect()
+            } else {
+                (0..first_row.len()).map(|i| format!("c{i}")).collect()
+            }
         } else {
-            (0..first_row.len()).map(|i| format!("c{i}")).collect()
-        })
+            let first_row = reader.headers().map_err(|e| {
+                Error::new(
+                    ruby.exception_runtime_error(),
+                    format!("Failed to read headers: {e}"),
+                )
+            })?;
+            if has_headers {
+                first_row.iter().map(String::from).collect()
+            } else {
+                (0..first_row.len()).map(|i| format!("c{i}")).collect()
+            }
+        };
+
+        Ok(headers)
     }
 
     /// Creates a new RecordReader instance.
