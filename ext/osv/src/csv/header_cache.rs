@@ -8,7 +8,7 @@ use std::{
     collections::HashMap,
     sync::{
         atomic::{AtomicU32, Ordering},
-        LazyLock, Mutex, OnceLock,
+        Arc, LazyLock, Mutex, OnceLock,
     },
 };
 
@@ -22,12 +22,11 @@ pub enum CacheError {
     LockError(String),
 }
 
-static STRING_CACHE: LazyLock<Mutex<HashMap<&'static str, (StringCacheKey, AtomicU32)>>> =
+static STRING_CACHE: LazyLock<Mutex<HashMap<&'static str, (Arc<StringCacheKey>, AtomicU32)>>> =
     LazyLock::new(|| Mutex::new(HashMap::with_capacity(100)));
 
 pub struct StringCache;
 
-#[derive(Copy, Clone)]
 pub struct StringCacheKey(Opaque<FString>, &'static str);
 
 impl StringCacheKey {
@@ -45,6 +44,12 @@ impl AsRef<str> for StringCacheKey {
 }
 
 impl IntoValue for StringCacheKey {
+    fn into_value_with(self, handle: &Ruby) -> Value {
+        handle.into_value(self.0)
+    }
+}
+
+impl IntoValue for &StringCacheKey {
     fn into_value_with(self, handle: &Ruby) -> Value {
         handle.into_value(self.0)
     }
@@ -72,43 +77,43 @@ impl std::hash::Hash for StringCacheKey {
 
 impl StringCache {
     #[allow(dead_code)]
-    pub fn intern(string: String) -> Result<StringCacheKey, CacheError> {
+    pub fn intern(string: String) -> Result<Arc<StringCacheKey>, CacheError> {
         let mut cache = STRING_CACHE
             .lock()
             .map_err(|e| CacheError::LockError(e.to_string()))?;
 
         if let Some((_, (interned_string, counter))) = cache.get_key_value(string.as_str()) {
             counter.fetch_add(1, Ordering::Relaxed);
-            Ok(*interned_string)
+            Ok(interned_string.clone())
         } else {
-            let interned = StringCacheKey::new(string.as_str());
+            let interned = Arc::new(StringCacheKey::new(string.as_str()));
             let leaked = Box::leak(string.into_boxed_str());
-            cache.insert(leaked, (interned, AtomicU32::new(1)));
+            cache.insert(leaked, (interned.clone(), AtomicU32::new(1)));
             Ok(interned)
         }
     }
 
-    pub fn intern_many(strings: &[String]) -> Result<Vec<StringCacheKey>, CacheError> {
+    pub fn intern_many(strings: &[String]) -> Result<Vec<Arc<StringCacheKey>>, CacheError> {
         let mut cache = STRING_CACHE
             .lock()
             .map_err(|e| CacheError::LockError(e.to_string()))?;
 
-        let mut result: Vec<StringCacheKey> = Vec::with_capacity(strings.len());
+        let mut result: Vec<Arc<StringCacheKey>> = Vec::with_capacity(strings.len());
         for string in strings {
             if let Some((_, (interned_string, counter))) = cache.get_key_value(string.as_str()) {
                 counter.fetch_add(1, Ordering::Relaxed);
-                result.push(*interned_string);
+                result.push(interned_string.clone());
             } else {
-                let interned = StringCacheKey::new(string);
+                let interned = Arc::new(StringCacheKey::new(string));
                 let leaked = Box::leak(string.clone().into_boxed_str());
-                cache.insert(leaked, (interned, AtomicU32::new(1)));
+                cache.insert(leaked, (interned.clone(), AtomicU32::new(1)));
                 result.push(interned);
             }
         }
         Ok(result)
     }
 
-    pub fn clear(headers: &[StringCacheKey]) -> Result<(), CacheError> {
+    pub fn clear(headers: &[Arc<StringCacheKey>]) -> Result<(), CacheError> {
         let mut cache = STRING_CACHE
             .lock()
             .map_err(|e| CacheError::LockError(e.to_string()))?;
@@ -116,7 +121,7 @@ impl StringCache {
         let to_remove: Vec<_> = headers
             .iter()
             .filter_map(|header| {
-                let key = header.as_ref();
+                let key = header.as_ref().as_ref();
                 if let Some((_, (_, counter))) = cache.get_key_value(key) {
                     let prev_count = counter.fetch_sub(1, Ordering::Relaxed);
                     if prev_count == 1 {
@@ -140,7 +145,7 @@ impl StringCache {
 
 pub struct HeaderCacheCleanupIter<I> {
     pub inner: I,
-    pub headers: OnceLock<Vec<StringCacheKey>>,
+    pub headers: OnceLock<Vec<Arc<StringCacheKey>>>,
 }
 
 impl<I: Iterator> Iterator for HeaderCacheCleanupIter<I> {

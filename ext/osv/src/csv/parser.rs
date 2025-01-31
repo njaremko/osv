@@ -1,6 +1,7 @@
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::hash::BuildHasher;
+use std::sync::Arc;
 
 use super::header_cache::StringCacheKey;
 use super::CowStr;
@@ -14,7 +15,7 @@ pub trait RecordParser<'a> {
     type Output;
 
     fn parse(
-        headers: &[StringCacheKey],
+        headers: &[Arc<StringCacheKey>],
         record: &CsvRecordType,
         null_string: Option<Cow<'a, str>>,
         ignore_null_bytes: bool,
@@ -22,13 +23,13 @@ pub trait RecordParser<'a> {
 }
 
 impl<'a, S: BuildHasher + Default> RecordParser<'a>
-    for HashMap<StringCacheKey, Option<CowStr<'a>>, S>
+    for HashMap<Arc<StringCacheKey>, Option<CowStr<'a>>, S>
 {
     type Output = Self;
 
     #[inline]
     fn parse(
-        headers: &[StringCacheKey],
+        headers: &[Arc<StringCacheKey>],
         record: &CsvRecordType,
         null_string: Option<Cow<'a, str>>,
         ignore_null_bytes: bool,
@@ -65,7 +66,7 @@ impl<'a, S: BuildHasher + Default> RecordParser<'a>
                 }),
             };
 
-            map.insert(*header, value);
+            map.insert(header.clone(), value);
         });
         map
     }
@@ -76,7 +77,7 @@ impl<'a> RecordParser<'a> for Vec<Option<CowStr<'a>>> {
 
     #[inline]
     fn parse(
-        headers: &[StringCacheKey],
+        headers: &[Arc<StringCacheKey>],
         record: &CsvRecordType,
         null_string: Option<Cow<'a, str>>,
         ignore_null_bytes: bool,
