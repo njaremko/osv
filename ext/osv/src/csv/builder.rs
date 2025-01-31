@@ -169,7 +169,8 @@ impl<'a, T: RecordParser<'a>> RecordReaderBuilder<'a, T> {
             return Err(ReaderError::InvalidFileDescriptor(fd));
         }
 
-        let file = unsafe { File::from_raw_fd(fd) };
+        let file = std::panic::catch_unwind(|| unsafe { File::from_raw_fd(fd) })
+            .map_err(|e| ReaderError::FileDescriptor(format!("{:?}", e)))?;
         let forgotten = ForgottenFileHandle(ManuallyDrop::new(file));
         Ok(Box::new(forgotten))
     }

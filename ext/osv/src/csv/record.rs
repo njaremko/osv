@@ -1,13 +1,13 @@
 use itertools::Itertools;
 use magnus::{value::ReprValue, IntoValue, Ruby, Value};
-use std::{borrow::Cow, collections::HashMap, hash::BuildHasher, sync::Arc};
+use std::{borrow::Cow, collections::HashMap, hash::BuildHasher};
 
 use super::StringCacheKey;
 
 #[derive(Debug)]
 pub enum CsvRecord<'a, S: BuildHasher + Default> {
     Vec(Vec<Option<CowStr<'a>>>),
-    Map(HashMap<Arc<StringCacheKey>, Option<CowStr<'a>>, S>),
+    Map(HashMap<StringCacheKey, Option<CowStr<'a>>, S>),
 }
 
 impl<S: BuildHasher + Default> IntoValue for CsvRecord<'_, S> {

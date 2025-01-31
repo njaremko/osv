@@ -5,7 +5,6 @@ use csv::Trim;
 use magnus::value::ReprValue;
 use magnus::{Error, IntoValue, KwArgs, RHash, Ruby, Symbol, Value};
 use std::collections::HashMap;
-use std::sync::Arc;
 
 /// Valid result types for CSV parsing
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -94,7 +93,7 @@ pub fn parse_csv(rb_self: Value, args: &[Value]) -> Result<Value, Error> {
     match result_type {
         ResultType::Hash => {
             let builder = RecordReaderBuilder::<
-                HashMap<Arc<StringCacheKey>, Option<CowStr<'_>>, RandomState>,
+                HashMap<StringCacheKey, Option<CowStr<'_>>, RandomState>,
             >::new(ruby, to_read)
             .has_headers(has_headers)
             .flexible(flexible)

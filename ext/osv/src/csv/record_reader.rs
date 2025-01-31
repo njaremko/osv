@@ -5,7 +5,6 @@ use super::ruby_reader::SeekableRead;
 use magnus::{Error, Ruby};
 use std::borrow::Cow;
 use std::io::{BufReader, Read};
-use std::sync::Arc;
 
 /// Size of the internal buffer used for reading CSV records
 pub(crate) const READ_BUFFER_SIZE: usize = 16384;
@@ -15,7 +14,7 @@ pub(crate) const READ_BUFFER_SIZE: usize = 16384;
 /// This struct implements Iterator to provide a streaming interface for CSV records.
 pub struct RecordReader<'a, T: RecordParser<'a>> {
     reader: csv::Reader<BufReader<Box<dyn SeekableRead>>>,
-    headers: Vec<Arc<StringCacheKey>>,
+    headers: Vec<StringCacheKey>,
     null_string: Option<Cow<'a, str>>,
     string_record: CsvRecordType,
     parser: std::marker::PhantomData<T>,
@@ -75,7 +74,7 @@ impl<'a, T: RecordParser<'a>> RecordReader<'a, T> {
     /// Creates a new RecordReader instance.
     pub(crate) fn new(
         reader: csv::Reader<BufReader<Box<dyn SeekableRead>>>,
-        headers: Vec<Arc<StringCacheKey>>,
+        headers: Vec<StringCacheKey>,
         null_string: Option<Cow<'a, str>>,
         ignore_null_bytes: bool,
         lossy: bool,
