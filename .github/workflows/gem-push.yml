@@ -1,11 +1,8 @@
 name: Ruby Gem
 
 on:
-  push:
-    branches: ["main"]
-    paths:
-      - "lib/osv/version.rb"
   workflow_dispatch:
+
 jobs:
   build:
     name: Build + Publish
@@ -15,13 +12,80 @@ jobs:
       id-token: write # IMPORTANT: this permission is mandatory for trusted publishing
       contents: write # IMPORTANT: this permission is required for `rake release` to push the release tag
 
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: x86_64-linux
+            target: x86_64-unknown-linux-gnu
+          - platform: x86_64-linux-musl
+            target: x86_64-unknown-linux-musl
+          - platform: aarch64-linux
+            target: aarch64-unknown-linux-gnu
+          - platform: aarch64-linux-musl
+            target: aarch64-unknown-linux-musl
+          - platform: x86_64-darwin
+            target: x86_64-apple-darwin
+          - platform: arm64-darwin
+            target: aarch64-apple-darwin
+          - platform: normal
+            target: normal
+
     steps:
       - uses: actions/checkout@v4
+
       - name: Set up Ruby 3.2
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: 3.2
-          bundler-cache: true # runs 'bundle install' and caches installed gems automatically
 
-      # Run tests and release
-      - uses: rubygems/release-gem@v1
+      # For some reason, I need to manually install this, even though it's seemingly automated below...
+      - name: rb-sys
+        run: |
+          gem install rb_sys
+
+      - uses: oxidize-rb/actions/cross-gem@v1
+        if: ${{ matrix.target != 'normal' }}
+        id: cross-gem
+        with:
+          platform: ${{ matrix.platform }}
+          ruby-versions: "3.4,3.3,3.2"
+
+      - uses: actions/upload-artifact@v4
+        if: ${{ matrix.target != 'normal' }}
+        with:
+          name: cross-gem-${{ matrix.platform }}
+          path: ${{ steps.cross-gem.outputs.gem-path }}
+
+      - name: Set remote URL
+        shell: bash
+        run: |
+          # Attribute commits to the last committer on HEAD
+          git config --global user.email "$(git log -1 --pretty=format:'%ae')"
+          git config --global user.name "$(git log -1 --pretty=format:'%an')"
+          git remote set-url origin "https://x-access-token:${{ github.token }}@github.com/$GITHUB_REPOSITORY"
+
+      - name: Configure trusted publishing credentials
+        uses: rubygems/configure-rubygems-credentials@v1.0.0
+
+      - name: Download patch
+        shell: bash
+        run: |
+          wget https://raw.githubusercontent.com/rubygems/release-gem/refs/heads/v1/rubygems-attestation-patch.rb
+
+      - name: Run release rake task
+        if: ${{ matrix.target != 'normal' }}
+        shell: bash
+        env:
+          RUBYOPT: "${{ format('-r{0}/rubygems-attestation-patch.rb {1}', github.workspace, env.RUBYOPT) || env.RUBYOPT }}"
+        run: |
+          gem push --key rubygems ${{ steps.cross-gem.outputs.gem-path }}
+
+      - name: Run release rake task
+        if: ${{ matrix.target == 'normal' }}
+        shell: bash
+        env:
+          RUBYOPT: "${{ format('-r{0}/rubygems-attestation-patch.rb {1}', github.workspace, env.RUBYOPT) || env.RUBYOPT }}"
+        run: |
+          gem build osv.gemspec
+          gem push --key rubygems osv-*.gem

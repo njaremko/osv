@@ -1,5 +1,10 @@
 require_relative "osv/version"
-require_relative "osv/osv"
+
+begin
+  require "osv/#{RUBY_VERSION.to_f}/osv"
+rescue LoadError
+  require "osv/osv"
+end
 
 module OSV
 end

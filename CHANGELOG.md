@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.4
+
+- Added support for cross-compilation for multiple platforms
+
 ## 0.4.2 and 0.4.3
 
 - Fix occasional segfault when parsing with `result_type: :hash`
