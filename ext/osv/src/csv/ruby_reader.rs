@@ -7,7 +7,7 @@ use std::fs::File;
 use std::io::{self, BufReader, Read, Seek, SeekFrom, Write};
 use std::sync::OnceLock;
 
-use super::{builder::ReaderError, ForgottenFileHandle};
+use super::builder::ReaderError;
 
 static STRING_IO_CLASS: OnceLock<Opaque<RClass>> = OnceLock::new();
 
@@ -24,7 +24,6 @@ impl SeekableRead for RubyReader<RString> {}
 impl SeekableRead for File {}
 impl<T: Read + Seek> SeekableRead for BufReader<T> {}
 impl SeekableRead for std::io::Cursor<Vec<u8>> {}
-impl SeekableRead for ForgottenFileHandle {}
 
 pub fn build_ruby_reader(ruby: &Ruby, input: Value) -> Result<Box<dyn SeekableRead>, ReaderError> {
     if RubyReader::is_string_io(ruby, &input) {

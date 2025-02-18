@@ -3,18 +3,14 @@ use super::{
     parser::RecordParser,
     record_reader::{RecordReader, READ_BUFFER_SIZE},
     ruby_reader::{build_ruby_reader, SeekableRead},
-    ForgottenFileHandle,
 };
 use flate2::read::GzDecoder;
-use magnus::{rb_sys::AsRawValue, value::ReprValue, Error as MagnusError, RString, Ruby, Value};
+use magnus::{value::ReprValue, Error as MagnusError, RString, Ruby, Value};
 use std::{
     borrow::Cow,
-    fmt::Debug,
     fs::File,
     io::{self, BufReader, Read},
     marker::PhantomData,
-    mem::ManuallyDrop,
-    os::fd::FromRawFd,
 };
 
 use thiserror::Error;
@@ -159,22 +155,6 @@ impl<'a, T: RecordParser<'a>> RecordReaderBuilder<'a, T> {
         self
     }
 
-    /// Handles reading from a file descriptor.
-    fn handle_file_descriptor(&self) -> Result<Box<dyn SeekableRead>, ReaderError> {
-        let raw_value = self.to_read.as_raw();
-        let fd = std::panic::catch_unwind(|| unsafe { rb_sys::rb_io_descriptor(raw_value) })
-            .map_err(|e| ReaderError::FileDescriptor(format!("{:?}", e)))?;
-
-        if fd < 0 {
-            return Err(ReaderError::InvalidFileDescriptor(fd));
-        }
-
-        let file = std::panic::catch_unwind(|| unsafe { File::from_raw_fd(fd) })
-            .map_err(|e| ReaderError::FileDescriptor(format!("{:?}", e)))?;
-        let forgotten = ForgottenFileHandle(ManuallyDrop::new(file));
-        Ok(Box::new(forgotten))
-    }
-
     /// Handles reading from a file path.
     fn handle_file_path(&self) -> Result<Box<dyn SeekableRead>, ReaderError> {
         let path = self.to_read.to_r_string()?.to_string()?;
@@ -194,9 +174,7 @@ impl<'a, T: RecordParser<'a>> RecordReaderBuilder<'a, T> {
 
     /// Builds the RecordReader with the configured options.
     pub fn build(self) -> Result<RecordReader<'a, T>, ReaderError> {
-        let readable = if self.to_read.is_kind_of(self.ruby.class_io()) {
-            self.handle_file_descriptor()?
-        } else if self.to_read.is_kind_of(self.ruby.class_string()) {
+        let readable = if self.to_read.is_kind_of(self.ruby.class_string()) {
             self.handle_file_path()?
         } else {
             build_ruby_reader(&self.ruby, self.to_read)?

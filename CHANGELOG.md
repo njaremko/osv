@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.0
+
+Got rid of surprising behaviour that bypassed ruby if the provided IO had a file descriptor. It led to confusing bugs where people would write a custom read method that was ignored because we read the file descriptor directly.
+
 ## 0.4.4
 
 - Added support for cross-compilation for multiple platforms

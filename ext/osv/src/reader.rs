@@ -3,7 +3,7 @@ use crate::utils::*;
 use ahash::RandomState;
 use csv::Trim;
 use magnus::value::ReprValue;
-use magnus::{Error, IntoValue, KwArgs, RHash, Ruby, Symbol, Value};
+use magnus::{Error, IntoValue, KwArgs, Ruby, Symbol, Value};
 use std::collections::HashMap;
 
 /// Valid result types for CSV parsing
@@ -62,24 +62,27 @@ pub fn parse_csv(rb_self: Value, args: &[Value]) -> Result<Value, Error> {
     } = parse_read_csv_args(&ruby, args)?;
 
     if !ruby.block_given() {
-        return create_enumerator(EnumeratorArgs {
-            rb_self,
-            to_read,
-            has_headers,
-            delimiter,
-            quote_char,
-            null_string,
-            result_type,
-            flexible,
-            trim: match trim {
-                Trim::All => Some("all".to_string()),
-                Trim::Headers => Some("headers".to_string()),
-                Trim::Fields => Some("fields".to_string()),
-                _ => None,
+        return create_enumerator(
+            &ruby,
+            EnumeratorArgs {
+                rb_self,
+                to_read,
+                has_headers,
+                delimiter,
+                quote_char,
+                null_string,
+                result_type,
+                flexible,
+                trim: match trim {
+                    Trim::All => Some("all".to_string()),
+                    Trim::Headers => Some("headers".to_string()),
+                    Trim::Fields => Some("fields".to_string()),
+                    _ => None,
+                },
+                ignore_null_bytes,
+                lossy,
             },
-            ignore_null_bytes,
-            lossy,
-        })
+        )
         .map(|yield_enum| yield_enum.into_value_with(&ruby));
     }
 
@@ -136,8 +139,8 @@ pub fn parse_csv(rb_self: Value, args: &[Value]) -> Result<Value, Error> {
 }
 
 /// Creates an enumerator for lazy CSV parsing
-fn create_enumerator(args: EnumeratorArgs) -> Result<magnus::Enumerator, Error> {
-    let kwargs = RHash::new();
+fn create_enumerator(ruby: &Ruby, args: EnumeratorArgs) -> Result<magnus::Enumerator, Error> {
+    let kwargs = ruby.hash_new();
     kwargs.aset(Symbol::new("has_headers"), args.has_headers)?;
     kwargs.aset(
         Symbol::new("col_sep"),

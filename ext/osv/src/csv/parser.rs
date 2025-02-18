@@ -57,7 +57,7 @@ impl<'a, S: BuildHasher + Default> RecordParser<'a>
                 }),
             };
 
-            map.insert(header.clone(), value);
+            map.insert(*header, value);
         });
         map
     }
