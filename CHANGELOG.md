@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.1
+
+- Attempting to determine if the value being read is a `StringIO` is difficult to due safely, so just treat it as an `IO`-like object.
+
 ## 0.5.0
 
 - Got rid of surprising behaviour that bypassed ruby if the provided IO had a file descriptor. It led to confusing bugs where people would write a custom read method that was ignored because we read the file descriptor directly.

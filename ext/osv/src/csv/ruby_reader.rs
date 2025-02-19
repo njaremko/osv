@@ -1,17 +1,14 @@
 use flate2::bufread::GzDecoder;
 use magnus::{
     value::{Opaque, ReprValue},
-    RClass, RString, Ruby, Value,
+    RString, Ruby, Value,
 };
 use std::{
     fs::File,
     io::{self, BufReader, Read, Write},
-    sync::OnceLock,
 };
 
 use super::{builder::ReaderError, record_reader::READ_BUFFER_SIZE};
-
-static STRING_IO_CLASS: OnceLock<Opaque<RClass>> = OnceLock::new();
 
 /// A reader that can handle various Ruby input types (String, StringIO, IO-like objects)
 /// and provide a standard Read implementation for them.
@@ -29,15 +26,6 @@ pub enum RubyReader {
 }
 
 impl RubyReader {
-    fn is_string_io(ruby: &Ruby, value: &Value) -> bool {
-        let string_io_class = STRING_IO_CLASS.get_or_init(|| {
-            let class = RClass::from_value(ruby.eval("StringIO").expect("Failed to find StringIO"))
-                .expect("Failed to get StringIO class");
-            Opaque::from(class)
-        });
-        value.is_kind_of(ruby.get_inner(*string_io_class))
-    }
-
     fn is_io_like(value: &Value) -> bool {
         value.respond_to("read", false).unwrap_or(false)
     }
@@ -48,13 +36,7 @@ impl TryFrom<Value> for RubyReader {
 
     fn try_from(value: Value) -> Result<Self, Self::Error> {
         let ruby = unsafe { Ruby::get_unchecked() };
-        if RubyReader::is_string_io(&ruby, &value) {
-            let string_content = value.funcall::<_, _, RString>("string", ())?;
-            Ok(RubyReader::String {
-                inner: Opaque::from(string_content),
-                offset: 0,
-            })
-        } else if RubyReader::is_io_like(&value) {
+        if RubyReader::is_io_like(&value) {
             Ok(RubyReader::RubyIoLike {
                 inner: Opaque::from(value),
             })
