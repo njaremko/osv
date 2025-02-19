@@ -2,7 +2,9 @@
 
 ## 0.5.0
 
-Got rid of surprising behaviour that bypassed ruby if the provided IO had a file descriptor. It led to confusing bugs where people would write a custom read method that was ignored because we read the file descriptor directly.
+- Got rid of surprising behaviour that bypassed ruby if the provided IO had a file descriptor. It led to confusing bugs where people would write a custom read method that was ignored because we read the file descriptor directly.
+- No longer read file into memory when reading gzipped data...
+- Cleanup the reader implementation in general
 
 ## 0.4.4
 

@@ -2,14 +2,12 @@ use super::{
     header_cache::{CacheError, StringCache},
     parser::RecordParser,
     record_reader::{RecordReader, READ_BUFFER_SIZE},
-    ruby_reader::{build_ruby_reader, SeekableRead},
+    ruby_reader::RubyReader,
 };
-use flate2::read::GzDecoder;
-use magnus::{value::ReprValue, Error as MagnusError, RString, Ruby, Value};
+use magnus::{Error as MagnusError, RString, Ruby, Value};
 use std::{
     borrow::Cow,
-    fs::File,
-    io::{self, BufReader, Read},
+    io::{self, BufReader},
     marker::PhantomData,
 };
 
@@ -155,30 +153,9 @@ impl<'a, T: RecordParser<'a>> RecordReaderBuilder<'a, T> {
         self
     }
 
-    /// Handles reading from a file path.
-    fn handle_file_path(&self) -> Result<Box<dyn SeekableRead>, ReaderError> {
-        let path = self.to_read.to_r_string()?.to_string()?;
-        let file = File::open(&path)?;
-
-        if path.ends_with(".gz") {
-            // For gzipped files, we need to decompress them into memory first
-            // since GzDecoder doesn't support seeking
-            let mut decoder = GzDecoder::new(BufReader::with_capacity(READ_BUFFER_SIZE, file));
-            let mut contents = Vec::new();
-            decoder.read_to_end(&mut contents)?;
-            Ok(Box::new(std::io::Cursor::new(contents)))
-        } else {
-            Ok(Box::new(file))
-        }
-    }
-
     /// Builds the RecordReader with the configured options.
     pub fn build(self) -> Result<RecordReader<'a, T>, ReaderError> {
-        let readable = if self.to_read.is_kind_of(self.ruby.class_string()) {
-            self.handle_file_path()?
-        } else {
-            build_ruby_reader(&self.ruby, self.to_read)?
-        };
+        let readable = RubyReader::try_from(self.to_read)?;
 
         let flexible = self.flexible;
         let reader = BufReader::with_capacity(READ_BUFFER_SIZE, readable);

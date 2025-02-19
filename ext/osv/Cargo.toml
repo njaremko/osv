@@ -10,13 +10,13 @@ crate-type = ["cdylib"]
 ahash = "0.8"
 csv = "^1.3"
 flate2 = "1.0.35"
-kanal = "0.1.0-pre8"
 magnus = { version = "0.7", features = ["rb-sys"] }
 rb-sys = "^0.9"
 serde = { version = "1.0", features = ["derive"] }
 serde_magnus = "0.8.1"
 thiserror = "2.0"
 itertools = "^0.14"
+tempfile = "3.17.1"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 jemallocator = { version = "0.5", features = ["disable_initial_exec_tls"] }
