@@ -5,6 +5,24 @@ require "minitest/autorun"
 
 # Tests focused on parsing options and formatting
 class FormatOptionsTest < Minitest::Test
+  def test_parse_csv_with_headers_null
+    expected = [
+      { "id" => "1", "age" => "25", "name" => "John" },
+      { "name" => nil, "id" => "2", "age" => "30" },
+      { "name" => "Jim", "age" => "35", "id" => "3" }
+    ]
+    actual = []
+    OSV.for_each("test/test.csv", nil_string: "Jane") { |row| actual << row }
+    assert_equal expected, actual
+  end
+
+  def test_parse_csv_compat_with_headers_null
+    expected = [%w[1 John 25], ["2", nil, "30"], %w[3 Jim 35]]
+    actual = []
+    OSV.for_each("test/test.csv", has_headers: true, nil_string: "Jane", result_type: "array") { |row| actual << row }
+    assert_equal expected, actual
+  end
+
   def test_parse_csv_with_empty_field
     Tempfile.create(%w[test .csv]) do |tempfile|
       # Copy existing content and add a line with empty field
