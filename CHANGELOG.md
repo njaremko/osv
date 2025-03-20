@@ -4,6 +4,7 @@
 
 - Lots of new tests
 - One bug fix with extremely wide CSVs
+- Do not intern headers when parsing with result type set to array
 
 ## 0.5.1
 

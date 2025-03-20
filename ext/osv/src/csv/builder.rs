@@ -174,7 +174,12 @@ impl<'a, T: RecordParser<'a>> RecordReaderBuilder<'a, T> {
         if self.ignore_null_bytes {
             headers = headers.iter().map(|h| h.replace("\0", "")).collect();
         }
-        let static_headers = StringCache::intern_many(&headers)?;
+
+        let static_headers = if T::uses_headers() {
+            StringCache::intern_many(&headers)?
+        } else {
+            Vec::new()
+        };
 
         let null_string = self
             .null_string

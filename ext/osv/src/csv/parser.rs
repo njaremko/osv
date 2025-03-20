@@ -19,12 +19,19 @@ pub trait RecordParser<'a> {
         null_string: Option<Cow<'a, str>>,
         ignore_null_bytes: bool,
     ) -> Self::Output;
+
+    fn uses_headers() -> bool;
 }
 
 impl<'a, S: BuildHasher + Default> RecordParser<'a>
     for HashMap<StringCacheKey, Option<CowStr<'a>>, S>
 {
     type Output = Self;
+
+    #[inline]
+    fn uses_headers() -> bool {
+        true
+    }
 
     #[inline]
     fn parse(
@@ -65,6 +72,11 @@ impl<'a, S: BuildHasher + Default> RecordParser<'a>
 
 impl<'a> RecordParser<'a> for Vec<Option<CowStr<'a>>> {
     type Output = Self;
+
+    #[inline]
+    fn uses_headers() -> bool {
+        false
+    }
 
     #[inline]
     fn parse(
