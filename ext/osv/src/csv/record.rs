@@ -26,7 +26,7 @@ impl<S: BuildHasher + Default> IntoValue for CsvRecord<'_, S> {
                 let mut values: [Value; 128] = [handle.qnil().as_value(); 128];
                 let mut i = 0;
 
-                for chunk in &map.into_iter().chunks(128) {
+                for chunk in &map.into_iter().chunks(64) {
                     for (k, v) in chunk {
                         values[i] = handle.into_value(k.as_ref());
                         values[i + 1] = handle.into_value(v);

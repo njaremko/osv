@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.2
+
+- Lots of new tests
+- One bug fix with extremely wide CSVs
+
 ## 0.5.1
 
 - Attempting to determine if the value being read is a `StringIO` is difficult to due safely, so just treat it as an `IO`-like object.

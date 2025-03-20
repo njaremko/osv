@@ -42,7 +42,7 @@ impl TryFrom<Value> for RubyReader {
             })
         } else if value.is_kind_of(ruby.class_string()) {
             let ruby_string = value.to_r_string()?;
-            let file_path = unsafe { ruby_string.as_str()? };
+            let file_path = ruby_string.to_string()?;
             let file = File::open(&file_path)?;
 
             let x: Box<dyn Read> = if file_path.ends_with(".gz") {

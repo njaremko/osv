@@ -13,7 +13,7 @@ flate2 = "1.0.35"
 magnus = { version = "0.7", features = ["rb-sys"] }
 rb-sys = "^0.9"
 serde = { version = "1.0", features = ["derive"] }
-serde_magnus = "0.8.1"
+serde_magnus = "0.9.0"
 thiserror = "2.0"
 itertools = "^0.14"
 tempfile = "3.17.1"

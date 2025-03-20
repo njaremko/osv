@@ -272,18 +272,6 @@ checksum = "d26c52dbd32dccf2d10cac7725f8eae5296885fb5703b261f7d0a0739ec807ab"
 
 [[package]]
 name = "magnus"
-version = "0.6.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b1597ef40aa8c36be098249e82c9a20cf7199278ac1c1a1a995eeead6a184479"
-dependencies = [
- "magnus-macros",
- "rb-sys",
- "rb-sys-env",
- "seq-macro",
-]
-
-[[package]]
-name = "magnus"
 version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3d87ae53030f3a22e83879e666cb94e58a7bdf31706878a0ba48752994146dab"
@@ -360,7 +348,7 @@ dependencies = [
  "flate2",
  "itertools 0.14.0",
  "jemallocator",
- "magnus 0.7.1",
+ "magnus",
  "mimalloc",
  "rb-sys",
  "serde",
@@ -499,11 +487,11 @@ dependencies = [
 
 [[package]]
 name = "serde_magnus"
-version = "0.8.1"
+version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "76c20da583b5e1016e9199ef5f3260f7a8d1b253307d232600f6b12737262dbd"
+checksum = "51b8b945a2dadb221f1c5490cfb411cab6c3821446b8eca50ee07e5a3893ec51"
 dependencies = [
- "magnus 0.6.4",
+ "magnus",
  "serde",
  "tap",
 ]

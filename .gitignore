@@ -8,3 +8,4 @@ pkg/
 /benchmark/*.csv*
 profile.json
 flamegraph.svg
+CLAUDE.md
