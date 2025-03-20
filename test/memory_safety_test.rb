@@ -144,13 +144,11 @@ class MemorySafetyTest < Minitest::Test
                 break
               rescue => e
                 mutex.synchronize { error_count += 1 }
-                puts "Thread #{thread_id} error: #{e.message}"
                 break
               end
             end
           rescue => e
             mutex.synchronize { error_count += 1 }
-            puts "Thread #{thread_id} outer error: #{e.message}"
           end
         end
       end
@@ -221,7 +219,6 @@ class MemorySafetyTest < Minitest::Test
           # Verify we read all rows
           assert_equal 4, rows.size, "Should have read 4 rows with options: #{opts}"
         rescue => e
-          puts "Error parsing with buffer boundary test (#{opts.inspect}): #{e.message}"
           raise
         end
       end

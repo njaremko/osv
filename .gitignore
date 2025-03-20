@@ -9,3 +9,5 @@ pkg/
 profile.json
 flamegraph.svg
 CLAUDE.md
+generate_context.py
+context.txt

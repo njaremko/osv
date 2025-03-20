@@ -940,7 +940,6 @@ class BasicTest < Minitest::Test
           end
         end
       rescue => e
-        puts "Error during parsing: #{e.message}"
         raise
       end
       
@@ -1057,7 +1056,6 @@ class BasicTest < Minitest::Test
       end
     rescue => e
       # Note the error but don't fail the test
-      puts "Error during test: #{e.message}"
     end
   end
   
@@ -1103,7 +1101,6 @@ class BasicTest < Minitest::Test
         OSV.for_each(file.path) { |row| rows << row }
       rescue => e
         # Log any errors but don't fail the test
-        puts "Error during recursive modification: #{e.message}"
       end
       
       # Success if we didn't segfault
@@ -1145,7 +1142,6 @@ class BasicTest < Minitest::Test
         assert rows3.size > 0
       rescue => e
         # Log any errors but don't fail the test
-        puts "Error during huge header parsing: #{e.message}"
       end
     ensure
       file.close
@@ -1216,7 +1212,6 @@ class BasicTest < Minitest::Test
         end
       rescue => e
         # We expect this to fail, but it shouldn't segfault
-        puts "Expected error: #{e.message}"
       end
     end
   end
@@ -1261,7 +1256,6 @@ class BasicTest < Minitest::Test
         assert more_rows.size > 0
       rescue => e
         # This might also be expected if the file wasn't fully buffered
-        puts "Error after closing file: #{e.message}"
       end
       
       # Release memory pressure
@@ -1328,7 +1322,6 @@ class BasicTest < Minitest::Test
         # continue reading from a buffer or might fail, but it shouldn't segfault
       rescue => e
         # Expected error, but not a segfault
-        puts "Expected error after file mutation: #{e.message}"
       end
       
       # Check that we at least read the first rows correctly
@@ -1376,7 +1369,6 @@ class BasicTest < Minitest::Test
             f.close
           end
         rescue => e
-          puts "Error in iteration #{iteration}: #{e.message}"
         end
       end
       
@@ -1446,10 +1438,8 @@ class BasicTest < Minitest::Test
           end
           
           # Success! Just log how many rows we could read
-          puts "Successfully read #{rows.size} rows with params: #{params}"
         rescue => e
           # Log errors but don't fail - some errors are expected
-          puts "Error with params #{params}: #{e.message}"
         end
       end
       
@@ -1505,7 +1495,6 @@ class BasicTest < Minitest::Test
       rescue StopIteration
         # End of file
       rescue => e
-        puts "Error during parsing: #{e.message}"
       end
       
       # Success if we didn't segfault
@@ -1556,7 +1545,6 @@ class BasicTest < Minitest::Test
         assert more_rows.size > 0
       rescue => e
         # An error is acceptable, but not a segfault
-        puts "Expected error in use-after-free test: #{e.message}"
       end
     ensure
       file.close
@@ -1591,7 +1579,6 @@ class BasicTest < Minitest::Test
         row = enum.next
         assert_equal "3", row["id"]
       rescue => e
-        puts "Error continuing after marshal attempt: #{e.message}"
       end
     ensure
       file.close
@@ -1634,7 +1621,6 @@ class BasicTest < Minitest::Test
       
       assert_equal 3, rows.size
     rescue => e
-      puts "Error with chunked IO: #{e.message}"
     end
     
     # 2. Test with an IO object that reads very slowly
@@ -1670,7 +1656,6 @@ class BasicTest < Minitest::Test
       
       assert_equal 3, rows.size
     rescue => e
-      puts "Error with slow IO: #{e.message}"
     end
     
     # 3. Test with an IO object that intermittently fails
@@ -1709,7 +1694,6 @@ class BasicTest < Minitest::Test
       end
     rescue => e
       # We expect this to fail, but it shouldn't segfault
-      puts "Expected error with flaky IO: #{e.message}"
     end
     
     # Success if no segfault
@@ -1757,7 +1741,6 @@ class BasicTest < Minitest::Test
         assert more_rows.size > 0
       rescue => e
         # An error is acceptable, but not a segfault
-        puts "Error with fd reuse: #{e.message}"
       end
       
       # Clean up remaining files
@@ -1841,10 +1824,8 @@ class BasicTest < Minitest::Test
             end
           rescue StopIteration
             # End of file - unlikely with our corrupted data
-            puts "Surprisingly reached end of file with params: #{params}"
           rescue => e
             # Expected error, but it shouldn't segfault
-            puts "Expected error with corrupted CSV (#{params}): #{e.message}"
           end
           
           # Create a new enumerator and try again
@@ -1858,7 +1839,6 @@ class BasicTest < Minitest::Test
             # Expected
           end
         rescue => e
-          puts "Error creating parser for corrupted CSV: #{e.message}"
         end
       end
       
@@ -2039,7 +2019,6 @@ class BasicTest < Minitest::Test
             # End of file
           rescue => e
             # Expected for some combinations
-            puts "Expected error in extreme test (#{test_case[:options].inspect}): #{e.message}"
           end
           
           # Try creating a new enumerator
@@ -2055,7 +2034,6 @@ class BasicTest < Minitest::Test
           # Force aggressive GC
           GC.start(full_mark: true, immediate_sweep: true)
         rescue => e
-          puts "Error creating parser for extreme CSV: #{e.message}"
         end
       end
       
@@ -2149,13 +2127,11 @@ class BasicTest < Minitest::Test
             # Expected at end of file
           rescue => e
             # Log any other errors
-            puts "Error reading buffer boundary test (#{options.inspect}): #{e.message}"
           end
           
           # If we got here for any option combination without segfaulting, that's good
           assert rows.length > 0, "Should read at least some rows"
         rescue => e
-          puts "Error creating parser for buffer boundary test: #{e.message}"
         end
       end
     ensure
@@ -2238,7 +2214,6 @@ class BasicTest < Minitest::Test
           else enum3 = OSV.for_each(file.path, result_type: "array")
           end
         rescue => e
-          puts "Error during intensive memory test (iteration #{i}): #{e.message}"
         end
       end
       
@@ -2291,7 +2266,6 @@ class BasicTest < Minitest::Test
           begin
             enum.next
           rescue => e
-            puts "Error on initial reading: #{e.message}"
           end
         end
       end
@@ -2332,7 +2306,6 @@ class BasicTest < Minitest::Test
         rescue StopIteration
           # Expected if we reach the end
         rescue => e
-          puts "Error continuing to read after fragmentation (#{idx}): #{e.message}"
         end
       end
       
@@ -2348,7 +2321,6 @@ class BasicTest < Minitest::Test
       rescue StopIteration
         # Expected at end of file
       rescue => e
-        puts "Error in final complete read: #{e.message}"
       end
       
       # If we got here without a segfault, that's good
@@ -2462,7 +2434,6 @@ class BasicTest < Minitest::Test
           rescue StopIteration
             # Expected at end of file
           rescue => e
-            puts "Expected error in string edge case test (#{options.inspect}): #{e.message}"
           end
           
           # If we processed at least some rows without segfault, that's good
@@ -2470,7 +2441,6 @@ class BasicTest < Minitest::Test
             assert true
           end
         rescue => e
-          puts "Error creating parser for string edge case test: #{e.message}"
         end
       end
     ensure
@@ -2565,7 +2535,6 @@ class BasicTest < Minitest::Test
           # Success if we read at least one row
           assert rows.size > 0
         rescue => e
-          puts "Expected error in header test (#{test_case[:options].inspect}): #{e.message}"
         end
       end
     ensure
@@ -2684,7 +2653,6 @@ class BasicTest < Minitest::Test
             enum2 = OSV.for_each(file.path, lossy: true)
           end
         rescue => e
-          puts "Error during Cow string test (iteration #{i}): #{e.message}"
         end
       end
       
@@ -2851,7 +2819,6 @@ class BasicTest < Minitest::Test
             GC.start
           end
         rescue => e
-          puts "Error in boundary test (#{options.inspect}): #{e.message}"
         end
       end
     ensure
@@ -2911,7 +2878,6 @@ class BasicTest < Minitest::Test
           rescue StopIteration
             # Expected at end of file
           rescue => e
-            puts "Error in thread #{idx}: #{e.message}"
           end
           
           # Store results safely
@@ -2943,7 +2909,6 @@ class BasicTest < Minitest::Test
           # Reset the enumerator
           fresh_enums[enum_idx] = OSV.for_each(files[enum_idx].path)
         rescue => e
-          puts "Error in sequential test: #{e.message}"
         end
       end
       
@@ -3041,10 +3006,8 @@ class BasicTest < Minitest::Test
         
         # If we got here, then the issue has been fixed!
         assert_equal column_count, row.keys.size, "65-column CSV should parse correctly"
-        puts "SUCCESS: 65-column CSV parsed without error. The issue has been fixed!"
       rescue => e
         # If the issue exists but Ruby somehow catches it
-        puts "Error with 65 columns: #{e.class} - #{e.message}"
         flunk "CSV with 65 columns should parse without error"
       end
     ensure

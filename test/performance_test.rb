@@ -8,8 +8,8 @@ class PerformanceTest < Minitest::Test
   def test_parse_csv_with_many_rows
     # Generate test data with 2000 rows
     Tempfile.create(%w[test_many_rows .csv]) do |test_file|
-      test_file.puts "id,name,age"
-      2000.times { |i| test_file.puts "#{i},Person#{i},#{20 + i % 50}" }
+      test_file.write "id,name,age\n"
+      2000.times { |i| test_file.write "#{i},Person#{i},#{20 + i % 50}\n" }
       test_file.close
 
       # Parse and verify
@@ -23,8 +23,8 @@ class PerformanceTest < Minitest::Test
   def test_parse_csv_with_many_rows_stringio
     # Generate test data with 2000 rows
     io = StringIO.new
-    io.puts "id,name,age"
-    2000.times { |i| io.puts "#{i},Person#{i},#{20 + i % 50}" }
+    io.write "id,name,age\n"
+    2000.times { |i| io.write "#{i},Person#{i},#{20 + i % 50}\n" }
     io.rewind
 
     # Parse and verify
