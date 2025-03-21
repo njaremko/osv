@@ -6,6 +6,5 @@ mod record_reader;
 mod ruby_reader;
 
 pub use builder::RecordReaderBuilder;
-pub use header_cache::StringCacheKey;
 pub use record::CowStr;
 pub use record::CsvRecord;

@@ -2,12 +2,10 @@ use itertools::Itertools;
 use magnus::{value::ReprValue, IntoValue, Ruby, Value};
 use std::{borrow::Cow, collections::HashMap, hash::BuildHasher};
 
-use super::StringCacheKey;
-
 #[derive(Debug)]
 pub enum CsvRecord<'a, S: BuildHasher + Default> {
     Vec(Vec<Option<CowStr<'a>>>),
-    Map(HashMap<StringCacheKey, Option<CowStr<'a>>, S>),
+    Map(HashMap<&'static str, Option<CowStr<'a>>, S>),
 }
 
 impl<S: BuildHasher + Default> IntoValue for CsvRecord<'_, S> {
@@ -28,7 +26,7 @@ impl<S: BuildHasher + Default> IntoValue for CsvRecord<'_, S> {
 
                 for chunk in &map.into_iter().chunks(64) {
                     for (k, v) in chunk {
-                        values[i] = handle.into_value(k.as_ref());
+                        values[i] = handle.into_value(k);
                         values[i + 1] = handle.into_value(v);
                         i += 2;
                     }

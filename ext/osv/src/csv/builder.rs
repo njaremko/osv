@@ -65,8 +65,8 @@ impl From<ReaderError> for MagnusError {
 ///
 /// This struct provides a fluent interface for setting up CSV parsing options
 /// and creating a RecordReader with the specified configuration.
-pub struct RecordReaderBuilder<'a, T: RecordParser<'a>> {
-    ruby: Ruby,
+pub struct RecordReaderBuilder<'a, 'r, T: RecordParser<'a>> {
+    ruby: &'r Ruby,
     to_read: Value,
     has_headers: bool,
     delimiter: u8,
@@ -80,9 +80,9 @@ pub struct RecordReaderBuilder<'a, T: RecordParser<'a>> {
     _phantom_a: PhantomData<&'a ()>,
 }
 
-impl<'a, T: RecordParser<'a>> RecordReaderBuilder<'a, T> {
+impl<'a, 'r, T: RecordParser<'a>> RecordReaderBuilder<'a, 'r, T> {
     /// Creates a new builder instance with default settings.
-    pub fn new(ruby: Ruby, to_read: Value) -> Self {
+    pub fn new(ruby: &'r Ruby, to_read: Value) -> Self {
         Self {
             ruby,
             to_read,
@@ -154,7 +154,7 @@ impl<'a, T: RecordParser<'a>> RecordReaderBuilder<'a, T> {
     }
 
     /// Builds the RecordReader with the configured options.
-    pub fn build(self) -> Result<RecordReader<'a, T>, ReaderError> {
+    pub fn build(self) -> Result<RecordReader<'a, 'r, T>, ReaderError> {
         let readable = RubyReader::try_from(self.to_read)?;
 
         let flexible = self.flexible;
@@ -169,7 +169,7 @@ impl<'a, T: RecordParser<'a>> RecordReaderBuilder<'a, T> {
             .from_reader(reader);
 
         let mut headers =
-            RecordReader::<T>::get_headers(&self.ruby, &mut reader, self.has_headers, self.lossy)?;
+            RecordReader::<T>::get_headers(self.ruby, &mut reader, self.has_headers, self.lossy)?;
 
         if self.ignore_null_bytes {
             headers = headers.iter().map(|h| h.replace("\0", "")).collect();
@@ -193,6 +193,7 @@ impl<'a, T: RecordParser<'a>> RecordReaderBuilder<'a, T> {
             .map(Cow::Borrowed);
 
         Ok(RecordReader::new(
+            self.ruby,
             reader,
             static_headers,
             null_string,

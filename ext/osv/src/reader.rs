@@ -1,4 +1,4 @@
-use crate::csv::{CowStr, CsvRecord, RecordReaderBuilder, StringCacheKey};
+use crate::csv::{CowStr, CsvRecord, RecordReaderBuilder};
 use crate::utils::*;
 use ahash::RandomState;
 use csv::Trim;
@@ -96,8 +96,8 @@ pub fn parse_csv(rb_self: Value, args: &[Value]) -> Result<Value, Error> {
     match result_type {
         ResultType::Hash => {
             let builder = RecordReaderBuilder::<
-                HashMap<StringCacheKey, Option<CowStr<'_>>, RandomState>,
-            >::new(ruby, to_read)
+                HashMap<&'static str, Option<CowStr<'_>>, RandomState>,
+            >::new(&ruby, to_read)
             .has_headers(has_headers)
             .flexible(flexible)
             .trim(trim)
@@ -115,7 +115,7 @@ pub fn parse_csv(rb_self: Value, args: &[Value]) -> Result<Value, Error> {
             }
         }
         ResultType::Array => {
-            let builder = RecordReaderBuilder::<Vec<Option<CowStr<'_>>>>::new(ruby, to_read)
+            let builder = RecordReaderBuilder::<Vec<Option<CowStr<'_>>>>::new(&ruby, to_read)
                 .has_headers(has_headers)
                 .flexible(flexible)
                 .trim(trim)

@@ -1,9 +1,10 @@
+use super::builder::ReaderError;
+use super::header_cache::StringCacheKey;
+use super::CowStr;
+use magnus::Ruby;
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::hash::BuildHasher;
-
-use super::header_cache::StringCacheKey;
-use super::CowStr;
 
 pub enum CsvRecordType {
     String(csv::StringRecord),
@@ -14,17 +15,18 @@ pub trait RecordParser<'a> {
     type Output;
 
     fn parse(
+        handle: &Ruby,
         headers: &[StringCacheKey],
         record: &CsvRecordType,
         null_string: Option<Cow<'a, str>>,
         ignore_null_bytes: bool,
-    ) -> Self::Output;
+    ) -> Result<Self::Output, ReaderError>;
 
     fn uses_headers() -> bool;
 }
 
 impl<'a, S: BuildHasher + Default> RecordParser<'a>
-    for HashMap<StringCacheKey, Option<CowStr<'a>>, S>
+    for HashMap<&'static str, Option<CowStr<'a>>, S>
 {
     type Output = Self;
 
@@ -35,15 +37,16 @@ impl<'a, S: BuildHasher + Default> RecordParser<'a>
 
     #[inline]
     fn parse(
+        handle: &Ruby,
         headers: &[StringCacheKey],
         record: &CsvRecordType,
         null_string: Option<Cow<'a, str>>,
         ignore_null_bytes: bool,
-    ) -> Self::Output {
+    ) -> Result<Self::Output, ReaderError> {
         let mut map = HashMap::with_capacity_and_hasher(headers.len(), S::default());
         let shared_empty = Cow::Borrowed("");
 
-        headers.iter().enumerate().for_each(|(i, header)| {
+        for (i, header) in headers.iter().enumerate() {
             let value = match record {
                 CsvRecordType::String(s) => s.get(i).and_then(|field| {
                     convert_field_to_cow_str(
@@ -64,9 +67,10 @@ impl<'a, S: BuildHasher + Default> RecordParser<'a>
                 }),
             };
 
-            map.insert(*header, value);
-        });
-        map
+            map.insert(header.as_str(handle)?, value);
+        }
+
+        Ok(map)
     }
 }
 
@@ -80,11 +84,12 @@ impl<'a> RecordParser<'a> for Vec<Option<CowStr<'a>>> {
 
     #[inline]
     fn parse(
+        _handle: &Ruby,
         headers: &[StringCacheKey],
         record: &CsvRecordType,
         null_string: Option<Cow<'a, str>>,
         ignore_null_bytes: bool,
-    ) -> Self::Output {
+    ) -> Result<Self::Output, ReaderError> {
         let target_len = headers.len();
         let mut vec = Vec::with_capacity(target_len);
         let shared_empty = Cow::Borrowed("");
@@ -115,7 +120,7 @@ impl<'a> RecordParser<'a> for Vec<Option<CowStr<'a>>> {
             }
         }
 
-        vec
+        Ok(vec)
     }
 }
 

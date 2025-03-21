@@ -9,7 +9,11 @@ use std::{
     sync::{LazyLock, Mutex},
 };
 
-use magnus::{IntoValue, RString, Ruby, Value};
+use magnus::{
+    r_string::FString,
+    value::{InnerValue, Opaque},
+    IntoValue, RString, Ruby, Value,
+};
 
 use thiserror::Error;
 
@@ -21,27 +25,32 @@ pub enum CacheError {
     RStringConversion(String),
 }
 
-static STRING_CACHE: LazyLock<Mutex<HashMap<&'static str, StringCacheKey>>> =
+static STRING_CACHE: LazyLock<Mutex<HashMap<String, StringCacheKey>>> =
     LazyLock::new(|| Mutex::new(HashMap::with_capacity(100)));
 
 pub struct StringCache;
 
 #[derive(Copy, Clone)]
-pub struct StringCacheKey(&'static str);
+pub struct StringCacheKey(Opaque<FString>);
 
 impl StringCacheKey {
     pub fn new(string: &str) -> Result<Self, CacheError> {
         let rstr = RString::new(string);
         let fstr = rstr.to_interned_str();
-        Ok(Self(fstr.as_str().map_err(|e| {
-            CacheError::RStringConversion(e.to_string())
-        })?))
+        // FStrings should not be collected by the GC anyway, but just in case.
+        magnus::gc::register_mark_object(fstr);
+        Ok(Self(Opaque::from(fstr)))
     }
-}
 
-impl AsRef<str> for StringCacheKey {
-    fn as_ref(&self) -> &'static str {
+    pub fn as_fstr(&self, handle: &Ruby) -> FString {
+        self.0.get_inner_with(handle)
+    }
+
+    pub fn as_str(&self, handle: &Ruby) -> Result<&'static str, CacheError> {
         self.0
+            .get_inner_with(handle)
+            .as_str()
+            .map_err(|e| CacheError::RStringConversion(e.to_string()))
     }
 }
 
@@ -57,31 +66,11 @@ impl IntoValue for &StringCacheKey {
     }
 }
 
-impl std::fmt::Debug for StringCacheKey {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.0.fmt(f)
-    }
-}
-
-impl PartialEq for StringCacheKey {
-    fn eq(&self, other: &Self) -> bool {
-        self.0 == other.0
-    }
-}
-
-impl std::cmp::Eq for StringCacheKey {}
-
-impl std::hash::Hash for StringCacheKey {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.0.hash(state);
-    }
-}
-
 impl StringCache {
     pub fn intern_many<AsStr: AsRef<str>>(
         strings: &[AsStr],
     ) -> Result<Vec<StringCacheKey>, CacheError> {
-        let cache = STRING_CACHE
+        let mut cache = STRING_CACHE
             .lock()
             .map_err(|e| CacheError::LockError(e.to_string()))?;
 
@@ -91,6 +80,7 @@ impl StringCache {
                 result.push(*interned_string);
             } else {
                 let interned = StringCacheKey::new(string.as_ref())?;
+                cache.insert(string.as_ref().to_string(), interned);
                 result.push(interned);
             }
         }

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.3
+
+- Fix a bug dealing with header interning. We weren't actually storing the reference to the interned string, so we kept interning every time, and Ruby seems to have a bug that triggered occasional, random segfaults.
+
 ## 0.5.2
 
 - Lots of new tests

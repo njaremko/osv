@@ -100,9 +100,7 @@ impl Read for RubyReader {
                         buf.write_all(string_buffer)?;
                         Ok(string_buffer.len())
                     }
-                    None => {
-                        return Ok(0);
-                    }
+                    None => Ok(0),
                 }
             }
         }

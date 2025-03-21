@@ -12,7 +12,8 @@ pub(crate) const READ_BUFFER_SIZE: usize = 16384;
 /// A reader that processes CSV records using a specified parser.
 ///
 /// This struct implements Iterator to provide a streaming interface for CSV records.
-pub struct RecordReader<'a, T: RecordParser<'a>> {
+pub struct RecordReader<'a, 'r, T: RecordParser<'a>> {
+    handle: &'r Ruby,
     reader: csv::Reader<BufReader<RubyReader>>,
     headers: Vec<StringCacheKey>,
     null_string: Option<Cow<'a, str>>,
@@ -21,7 +22,7 @@ pub struct RecordReader<'a, T: RecordParser<'a>> {
     ignore_null_bytes: bool,
 }
 
-impl<'a, T: RecordParser<'a>> RecordReader<'a, T> {
+impl<'a, 'r, T: RecordParser<'a>> RecordReader<'a, 'r, T> {
     /// Reads and processes headers from a CSV reader.
     ///
     /// # Arguments
@@ -73,6 +74,7 @@ impl<'a, T: RecordParser<'a>> RecordReader<'a, T> {
 
     /// Creates a new RecordReader instance.
     pub(crate) fn new(
+        handle: &'r Ruby,
         reader: csv::Reader<BufReader<RubyReader>>,
         headers: Vec<StringCacheKey>,
         null_string: Option<Cow<'a, str>>,
@@ -81,6 +83,7 @@ impl<'a, T: RecordParser<'a>> RecordReader<'a, T> {
     ) -> Self {
         let headers_len = headers.len();
         Self {
+            handle,
             reader,
             headers,
             null_string,
@@ -108,18 +111,19 @@ impl<'a, T: RecordParser<'a>> RecordReader<'a, T> {
         }?;
         if record {
             Ok(Some(T::parse(
+                self.handle,
                 &self.headers,
                 &self.string_record,
                 self.null_string.clone(),
                 self.ignore_null_bytes,
-            )))
+            )?))
         } else {
             Ok(None)
         }
     }
 }
 
-impl<'a, T: RecordParser<'a>> Iterator for RecordReader<'a, T> {
+impl<'a, T: RecordParser<'a>> Iterator for RecordReader<'a, '_, T> {
     type Item = Result<T::Output, ReaderError>;
 
     #[inline]
